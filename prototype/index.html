@@ -1,0 +1,1070 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NGS · QC Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui'], mono: ['JetBrains Mono', 'monospace'] },
+      }
+    }
+  }
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js"></script>
+<style>
+  :root{
+    --bg: #f5f6f8;
+    --bg-elevated: #ffffff;
+    --bg-sunken: #eceef1;
+    --border: #e2e5ea;
+    --text: #1a1d24;
+    --text-muted: #6b7280;
+    --text-faint: #9aa1ab;
+    --accent: #2454c7;
+    --accent-soft: #e8effe;
+    --shadow-card: 0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.06);
+    --shadow-pop: 0 8px 24px rgba(16,24,40,.12), 0 2px 6px rgba(16,24,40,.08);
+
+    --c-wetlab: #c1440e;
+    --c-wetlab-soft: #fdece2;
+    --c-wetlab-soft-dark: #3a2318;
+    --c-primary: #1668c1;
+    --c-primary-soft: #e6f0fd;
+    --c-primary-soft-dark: #16273f;
+    --c-phead: #6a2fb0;
+    --c-phead-soft: #f1e9fb;
+    --c-phead-soft-dark: #2a1f3d;
+    --c-bhead: #123a6b;
+    --c-bhead-soft: #e5edf6;
+    --c-bhead-soft-dark: #1a2c40;
+    --c-success: #15803d;
+    --c-success-soft: #e5f6ea;
+    --c-danger: #b91c1c;
+    --c-danger-soft: #fbe9e9;
+    --c-warning: #b7791f;
+    --c-warning-soft: #fdf3df;
+  }
+  html.dark{
+    --bg: #0f1216;
+    --bg-elevated: #171b21;
+    --bg-sunken: #0b0d10;
+    --border: #262b33;
+    --text: #e7e9ec;
+    --text-muted: #9aa1ab;
+    --text-faint: #656c77;
+    --accent: #5b8def;
+    --accent-soft: #17243c;
+    --shadow-card: 0 1px 2px rgba(0,0,0,.3);
+    --shadow-pop: 0 12px 32px rgba(0,0,0,.5);
+
+    --c-wetlab-soft: var(--c-wetlab-soft-dark);
+    --c-primary-soft: var(--c-primary-soft-dark);
+    --c-phead-soft: var(--c-phead-soft-dark);
+    --c-bhead-soft: var(--c-bhead-soft-dark);
+    --c-success-soft: #10321d;
+    --c-danger-soft: #3a1616;
+    --c-warning-soft: #3a2c0f;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:'Inter',ui-sans-serif,system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:99px}
+  .card{ background:var(--bg-elevated); border:1px solid var(--border); border-radius:14px; box-shadow:var(--shadow-card); }
+  .mono{font-family:'JetBrains Mono',monospace}
+  .fade-in{animation:fadeIn .18s ease-out}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+  .slide-in{animation:slideIn .22s cubic-bezier(.32,.72,0,1)}
+  @keyframes slideIn{from{transform:translateX(24px);opacity:0}to{transform:translateX(0);opacity:1}}
+  .pop-in{animation:popIn .16s ease-out}
+  @keyframes popIn{from{transform:scale(.97);opacity:0}to{transform:scale(1);opacity:1}}
+  .scrim{animation:scrimIn .18s ease-out}
+  @keyframes scrimIn{from{opacity:0}to{opacity:1}}
+  .btn{ display:inline-flex; align-items:center; gap:6px; font-weight:600; font-size:13px; padding:8px 14px; border-radius:9px; border:1px solid transparent; cursor:pointer; transition:all .12s ease; white-space:nowrap; }
+  .btn:active{transform:translateY(1px)}
+  .btn-primary{ background:var(--accent); color:#fff; }
+  .btn-primary:hover{ filter:brightness(1.08); }
+  .btn-secondary{ background:var(--bg-sunken); color:var(--text); border-color:var(--border); }
+  .btn-secondary:hover{ background:var(--border); }
+  .btn-danger{ background:var(--c-danger); color:#fff; }
+  .btn-danger:hover{ filter:brightness(1.1); }
+  .btn-ghost{ background:transparent; color:var(--text-muted); }
+  .btn-ghost:hover{ background:var(--bg-sunken); color:var(--text); }
+  .btn:disabled{ opacity:.45; cursor:not-allowed; }
+  .input{ width:100%; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:8px 11px; font-size:13.5px; color:var(--text); font-family:inherit; }
+  .input:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+  .badge{ display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:99px; letter-spacing:.01em; }
+  .icon-btn{ display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:9px; color:var(--text-muted); cursor:pointer; transition:background .12s; border:1px solid transparent; }
+  .icon-btn:hover{ background:var(--bg-sunken); color:var(--text); }
+  .nav-item{ display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:9px; font-size:13.5px; font-weight:600; color:var(--text-muted); cursor:pointer; transition:all .12s; }
+  .nav-item:hover{ background:var(--bg-sunken); color:var(--text); }
+  .nav-item.active{ background:var(--accent-soft); color:var(--accent); }
+  .stage-node-line{ position:absolute; left:15px; top:32px; bottom:-8px; width:2px; }
+  .kanban-col::-webkit-scrollbar{width:0} .kanban-col{scrollbar-width:none}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useMemo, useRef, useCallback } = React;
+
+/* ---------------------------------- Icons ---------------------------------- */
+const ICONS = {
+  bell: "M12 2a5 5 0 0 0-5 5v3.3c0 1.2-2 3.2-2 3.7h14c0-.5-2-2.5-2-3.7V7a5 5 0 0 0-5-5z M9.5 17a2.5 2.5 0 0 0 5 0",
+  check: "M5 13l4 4L19 7",
+  x: "M6 6l12 12M18 6L6 18",
+  upload: "M12 16V4M7 9l5-5 5 5M5 20h14",
+  download: "M12 4v12M7 11l5 5 5-5M5 20h14",
+  fileText: "M7 2.5h6l5 5v14h-12z M13 2.5v5h5 M9.5 12h5 M9.5 15.5h5 M9.5 8.5h1.5",
+  clock: "M12 7v5l3 3 M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z",
+  users: "M2.5 20c0-3.3 3-5.5 6.5-5.5s6.5 2.2 6.5 5.5 M9 12.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z M16 9a2.6 2.6 0 1 0 0-5.2 M16.3 14.6c2.4.3 4.7 2.1 4.7 5.4",
+  flask: "M9.5 2.5h5 M10.3 2.5v6.2l-5 9.3a2 2 0 0 0 1.8 2.9h9.8a2 2 0 0 0 1.8-2.9l-5-9.3V2.5 M8 15h8",
+  chevronRight: "M9 6l6 6-6 6",
+  chevronDown: "M6 9l6 6 6-6",
+  grid: "M3.5 3.5h7v7h-7z M13.5 3.5h7v7h-7z M3.5 13.5h7v7h-7z M13.5 13.5h7v7h-7z",
+  list: "M9 6.5h12 M9 12h12 M9 17.5h12 M4 6.5h.01 M4 12h.01 M4 17.5h.01",
+  activity: "M3 12h4l2.5 8L14 4l2.5 8H21",
+  sun: "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z M12 2v2 M12 20v2 M4.9 4.9l1.4 1.4 M17.7 17.7l1.4 1.4 M2 12h2 M20 12h2 M4.9 19.1l1.4-1.4 M17.7 6.3l1.4-1.4",
+  moon: "M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z",
+  arrowLeft: "M19 12H5 M11 18l-6-6 6-6",
+  plus: "M12 5v14M5 12h14",
+  refresh: "M4 12a8 8 0 0 1 14-5.3L21 9 M21 4v5h-5 M20 12a8 8 0 0 1-14 5.3L3 15 M3 20v-5h5",
+  shieldCheck: "M12 3l8 3.2v5.8c0 5-3.4 8.4-8 9.5-4.6-1.1-8-4.5-8-9.5V6.2z M9 12l2 2 4-4.5",
+  building: "M4 21V4.5A1.5 1.5 0 0 1 5.5 3h9A1.5 1.5 0 0 1 16 4.5V21 M16 10h3.5A1.5 1.5 0 0 1 21 11.5V21 M4 21h17 M7.5 7h2 M7.5 11h2 M7.5 15h2 M12.5 7h2 M12.5 11h2 M12.5 15h2",
+  info: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 11v5.5 M12 8v.01",
+  logout: "M9 21H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h4 M16 17l5-5-5-5 M21 12H9",
+  search: "M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.3-4.3",
+  paperclip: "M21.4 11.1 12.2 20.3a5 5 0 0 1-7.1-7.1l9.2-9.2a3.3 3.3 0 0 1 4.7 4.7L9.7 17.9a1.7 1.7 0 0 1-2.4-2.4l8-8",
+  history: "M3 12a9 9 0 1 0 2.6-6.3 M3 4v5h5 M12 8v4l3 2",
+};
+function Icon({ name, size = 18, className = "", strokeWidth = 1.8, style }) {
+  const d = ICONS[name] || "";
+  const paths = d.split(/(?=M)/).filter(Boolean);
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className} style={style}
+      stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      {paths.map((p, i) => <path key={i} d={p} />)}
+    </svg>
+  );
+}
+
+/* ---------------------------------- Domain model ---------------------------------- */
+const ROLES = {
+  wetlab:       { id: "wetlab",       label: "Wet Lab",        color: "var(--c-wetlab)", soft: "var(--c-wetlab-soft)",  icon: "flask" },
+  primary_team: { id: "primary_team", label: "Primary Team",   color: "var(--c-primary)", soft: "var(--c-primary-soft)", icon: "users" },
+  primary_head: { id: "primary_head", label: "Primary Head",   color: "var(--c-phead)",   soft: "var(--c-phead-soft)",   icon: "shieldCheck" },
+  bioinfo_head: { id: "bioinfo_head", label: "Bioinfo Head",   color: "var(--c-bhead)",   soft: "var(--c-bhead-soft)",   icon: "building" },
+};
+const ROLE_ORDER = ["wetlab", "primary_team", "primary_head", "bioinfo_head"];
+
+const STAGES = [
+  { id: "raw_data_placed",     n: 1,  role: "wetlab",       title: "Place Raw Data",           desc: "Raw FASTQ / CSV / Excel / Md5sum placed in the common drive." },
+  { id: "dashboard_updated",   n: 2,  role: "wetlab",       title: "Update Dashboard",         desc: "Wet Lab confirms transfer and pushes a dashboard update." },
+  { id: "notified",            n: 3,  role: "primary_team", title: "Notification Received",    desc: "Primary Team is alerted that raw data is ready to process." },
+  { id: "drive_checked",       n: 4,  role: "primary_team", title: "Validate & Backup",        desc: "Common drive checked; raw CSV & Excel uploaded to the dashboard as backup." },
+  { id: "excel_prepared",      n: 5,  role: "primary_team", title: "Prepare Consolidated Excel", desc: "Essential details & metadata added to the raw Excel." },
+  { id: "excel_uploaded",      n: 6,  role: "primary_team", title: "Upload Consolidated Excel", desc: "Consolidated Excel uploaded — ready for approval." },
+  { id: "primary_head_review", n: 7,  role: "primary_head", title: "Primary Head Review",      desc: "Primary Team Head reviews & approves the Excel." },
+  { id: "wetlab_qc_review",    n: 8,  role: "wetlab",       title: "Wet Lab QC Review",         desc: "Wet Lab checks QC metrics and approves the Excel." },
+  { id: "bioinfo_review",      n: 9,  role: "bioinfo_head", title: "Bioinfo Head Review",       desc: "Bioinfo Team Head reviews & approves the Excel." },
+  { id: "pdf_prepared",        n: 10, role: "primary_team", title: "Prepare Consolidated PDF", desc: "Consolidated PDF assembled with Excel details." },
+  { id: "pdf_uploaded",        n: 11, role: "primary_team", title: "Upload PDF",                desc: "Consolidated PDF uploaded to the dashboard." },
+  { id: "wetlab_final_review", n: 12, role: "wetlab",       title: "Wet Lab Final Approval",    desc: "Wet Lab views the PDF and approves, with notes if required." },
+  { id: "completed",           n: 13, role: null,           title: "Approval Status Delivered", desc: "Final status (with any notes) delivered back to the Primary Team." },
+];
+const STAGE_IDX = Object.fromEntries(STAGES.map((s, i) => [s.id, i]));
+const REJECT_TARGET = { primary_head_review: "excel_uploaded", wetlab_qc_review: "excel_uploaded", bioinfo_review: "excel_uploaded", wetlab_final_review: "pdf_prepared" };
+const REVIEW_STAGES = new Set(["primary_head_review", "wetlab_qc_review", "bioinfo_review", "wetlab_final_review"]);
+
+const PEOPLE = {
+  wetlab: ["A. Menon", "S. Iyer"], primary_team: ["R. Das", "P. Krishnan"],
+  primary_head: ["Dr. V. Rao"], bioinfo_head: ["Dr. N. Sharma"],
+};
+function actorFor(role) { const list = PEOPLE[role] || ["System"]; return list[Math.floor(Math.random() * list.length)]; }
+
+function daysAgo(n) { const d = new Date(); d.setDate(d.getDate() - n); d.setHours(9 + (n % 5), 15 * (n % 4), 0, 0); return d.toISOString(); }
+function fmtDate(iso) { const d = new Date(iso); return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) + " · " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }); }
+function fmtShort(iso) { const d = new Date(iso); return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }); }
+function timeSince(iso) {
+  const s = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (s < 60) return "just now";
+  if (s < 3600) return Math.floor(s / 60) + "m ago";
+  if (s < 86400) return Math.floor(s / 3600) + "h ago";
+  return Math.floor(s / 86400) + "d ago";
+}
+
+function buildHistoryStep(stageId, note, files, actorRole, ts, action = "completed") {
+  return { stageId, action, note: note || "", files: files || [], actorRole, actorName: actorFor(actorRole), ts };
+}
+
+function seedRuns() {
+  const runs = [];
+  // Run 1: fully completed
+  {
+    const h = [];
+    let t = 12;
+    const step = 12 / (STAGES.length - 1);
+    for (const s of STAGES) { h.push(buildHistoryStep(s.id, s.id === "wetlab_final_review" ? "QC within spec, cleared for release." : "", s.id.includes("excel") || s.id.includes("pdf") || s.id==="drive_checked" ? [{ name: s.id === "pdf_uploaded" ? "NGS-021_Consolidated_Report.pdf" : s.id.includes("pdf") ? "NGS-021_Draft.pdf" : "NGS-021_Consolidated.xlsx", size: "1.2 MB" }] : [], s.role || "primary_team", daysAgo(Math.max(t, 0)), STAGES.find(x=>x.id===s.id).role && REVIEW_STAGES.has(s.id) ? "approved" : "completed")); t -= step; }
+    runs.push({ id: "run-021", code: "NGS-2026-021", name: "Oncology Panel — Batch 021", sampleCount: 24, panel: "TruSight Oncology 500", createdAt: daysAgo(12), currentStage: "completed", status: "completed", history: h });
+  }
+  // Run 2: awaiting bioinfo head review
+  {
+    const h = [
+      buildHistoryStep("raw_data_placed", "", [{ name: "Run034_FASTQ.tar.gz", size: "48.6 GB" }], "wetlab", daysAgo(5)),
+      buildHistoryStep("dashboard_updated", "", [], "wetlab", daysAgo(4.8)),
+      buildHistoryStep("notified", "", [], "primary_team", daysAgo(4.8)),
+      buildHistoryStep("drive_checked", "", [{ name: "Run034_raw.csv", size: "212 KB" }, { name: "Run034_raw.xlsx", size: "340 KB" }], "primary_team", daysAgo(4.2)),
+      buildHistoryStep("excel_prepared", "", [{ name: "Run034_Consolidated_draft.xlsx", size: "355 KB" }], "primary_team", daysAgo(3.6)),
+      buildHistoryStep("excel_uploaded", "", [{ name: "Run034_Consolidated.xlsx", size: "358 KB" }], "primary_team", daysAgo(3.1)),
+      buildHistoryStep("primary_head_review", "Metadata complete, looks good.", [], "primary_head", daysAgo(2.4), "approved"),
+      buildHistoryStep("wetlab_qc_review", "Q30 and coverage within threshold.", [], "wetlab", daysAgo(1.5), "approved"),
+    ];
+    runs.push({ id: "run-034", code: "NGS-2026-034", name: "Hereditary Cancer Panel — Batch 034", sampleCount: 32, panel: "BRCA Plus", createdAt: daysAgo(5), currentStage: "bioinfo_review", status: "in_progress", history: h });
+  }
+  // Run 3: rejected once by primary head, now re-uploaded, awaiting primary head again
+  {
+    const h = [
+      buildHistoryStep("raw_data_placed", "", [{ name: "Run040_FASTQ.tar.gz", size: "31.2 GB" }], "wetlab", daysAgo(6)),
+      buildHistoryStep("dashboard_updated", "", [], "wetlab", daysAgo(5.9)),
+      buildHistoryStep("notified", "", [], "primary_team", daysAgo(5.9)),
+      buildHistoryStep("drive_checked", "", [{ name: "Run040_raw.csv", size: "180 KB" }, { name: "Run040_raw.xlsx", size: "298 KB" }], "primary_team", daysAgo(5.3)),
+      buildHistoryStep("excel_prepared", "", [{ name: "Run040_Consolidated_v1.xlsx", size: "310 KB" }], "primary_team", daysAgo(4.7)),
+      buildHistoryStep("excel_uploaded", "", [{ name: "Run040_Consolidated_v1.xlsx", size: "310 KB" }], "primary_team", daysAgo(4.1)),
+      buildHistoryStep("primary_head_review", "Sample ID mismatch on row 14 — please correct and resubmit.", [], "primary_head", daysAgo(3.5), "rejected"),
+      buildHistoryStep("excel_uploaded", "Corrected sample IDs; re-validated against manifest.", [{ name: "Run040_Consolidated_v2.xlsx", size: "312 KB" }], "primary_team", daysAgo(2.0)),
+    ];
+    runs.push({ id: "run-040", code: "NGS-2026-040", name: "Exome Sequencing — Batch 040", sampleCount: 18, panel: "Clinical Exome", createdAt: daysAgo(6), currentStage: "primary_head_review", status: "in_progress", history: h });
+  }
+  // Run 4: fresh, just notified, primary team needs to validate
+  {
+    const h = [
+      buildHistoryStep("raw_data_placed", "", [{ name: "Run045_FASTQ.tar.gz", size: "52.9 GB" }], "wetlab", daysAgo(1)),
+      buildHistoryStep("dashboard_updated", "", [], "wetlab", daysAgo(0.9)),
+      buildHistoryStep("notified", "", [], "primary_team", daysAgo(0.9)),
+    ];
+    runs.push({ id: "run-045", code: "NGS-2026-045", name: "Non-Invasive Prenatal Panel — Batch 045", sampleCount: 40, panel: "NIPT Core", createdAt: daysAgo(1), currentStage: "drive_checked", status: "in_progress", history: h });
+  }
+  // Run 5: PDF uploaded, awaiting wet lab final approval
+  {
+    const h = [
+      buildHistoryStep("raw_data_placed", "", [{ name: "Run029_FASTQ.tar.gz", size: "39.4 GB" }], "wetlab", daysAgo(9)),
+      buildHistoryStep("dashboard_updated", "", [], "wetlab", daysAgo(8.9)),
+      buildHistoryStep("notified", "", [], "primary_team", daysAgo(8.9)),
+      buildHistoryStep("drive_checked", "", [{ name: "Run029_raw.csv", size: "205 KB" }, { name: "Run029_raw.xlsx", size: "330 KB" }], "primary_team", daysAgo(8.3)),
+      buildHistoryStep("excel_prepared", "", [{ name: "Run029_Consolidated.xlsx", size: "340 KB" }], "primary_team", daysAgo(7.6)),
+      buildHistoryStep("excel_uploaded", "", [{ name: "Run029_Consolidated.xlsx", size: "340 KB" }], "primary_team", daysAgo(7.0)),
+      buildHistoryStep("primary_head_review", "Approved, no issues.", [], "primary_head", daysAgo(6.2), "approved"),
+      buildHistoryStep("wetlab_qc_review", "QC clean across all 28 samples.", [], "wetlab", daysAgo(5.4), "approved"),
+      buildHistoryStep("bioinfo_review", "Bioinformatics pipeline output verified.", [], "bioinfo_head", daysAgo(4.5), "approved"),
+      buildHistoryStep("pdf_prepared", "", [{ name: "Run029_Report_draft.pdf", size: "1.1 MB" }], "primary_team", daysAgo(3.6)),
+      buildHistoryStep("pdf_uploaded", "", [{ name: "Run029_Consolidated_Report.pdf", size: "1.3 MB" }], "primary_team", daysAgo(2.8)),
+    ];
+    runs.push({ id: "run-029", code: "NGS-2026-029", name: "Carrier Screening Panel — Batch 029", sampleCount: 28, panel: "Expanded Carrier Screen", createdAt: daysAgo(9), currentStage: "wetlab_final_review", status: "in_progress", history: h });
+  }
+  return runs;
+}
+
+function seedNotifications(runs) {
+  const notes = [];
+  runs.forEach(r => {
+    const stage = STAGES.find(s => s.id === r.currentStage);
+    if (stage && stage.role && r.status === "in_progress") {
+      notes.push({ id: r.id + "-pending", runId: r.id, role: stage.role, read: false,
+        ts: r.history[r.history.length - 1].ts,
+        text: `${r.code} is awaiting: ${stage.title}` });
+    }
+  });
+  return notes.sort((a, b) => new Date(b.ts) - new Date(a.ts));
+}
+
+/* ---------------------------------- Persistence ---------------------------------- */
+const LS_KEY = "ngsqc_hub_state_v1";
+function loadState() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  const runs = seedRuns();
+  return { runs, notifications: seedNotifications(runs) };
+}
+function saveState(state) { try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {} }
+
+/* ---------------------------------- Small UI atoms ---------------------------------- */
+function RoleBadge({ role, size = "md" }) {
+  const r = ROLES[role]; if (!r) return null;
+  const pad = size === "sm" ? "2px 8px" : "3px 9px";
+  const fs = size === "sm" ? "10.5px" : "11.5px";
+  return (
+    <span className="badge" style={{ background: r.soft, color: r.color, padding: pad, fontSize: fs }}>
+      <Icon name={r.icon} size={size === "sm" ? 11 : 12.5} />{r.label}
+    </span>
+  );
+}
+function StatusPill({ status }) {
+  const map = {
+    completed: { bg: "var(--c-success-soft)", fg: "var(--c-success)", label: "Completed", icon: "check" },
+    in_progress: { bg: "var(--c-warning-soft)", fg: "var(--c-warning)", label: "In Progress", icon: "clock" },
+    rejected: { bg: "var(--c-danger-soft)", fg: "var(--c-danger)", label: "Revision Needed", icon: "x" },
+  };
+  const s = map[status] || map.in_progress;
+  return <span className="badge" style={{ background: s.bg, color: s.fg }}><Icon name={s.icon} size={11.5} />{s.label}</span>;
+}
+function ProgressBar({ value, color }) {
+  return (
+    <div style={{ height: 6, borderRadius: 99, background: "var(--bg-sunken)", overflow: "hidden" }}>
+      <div style={{ height: "100%", width: `${value}%`, background: color || "var(--accent)", borderRadius: 99, transition: "width .3s ease" }} />
+    </div>
+  );
+}
+function Avatar({ name, role }) {
+  const r = ROLES[role];
+  const initials = (name || "?").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+  return (
+    <div style={{ width: 26, height: 26, borderRadius: "50%", background: r ? r.soft : "var(--bg-sunken)", color: r ? r.color : "var(--text-muted)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10.5, fontWeight: 700, flexShrink: 0 }}>
+      {initials}
+    </div>
+  );
+}
+function isRunAwaitingRole(run, role) {
+  const stage = STAGES.find(s => s.id === run.currentStage);
+  return run.status === "in_progress" && stage && stage.role === role;
+}
+function runRejectedRecently(run) {
+  const last = run.history[run.history.length - 1];
+  return last && last.action === "rejected";
+}
+
+/* ---------------------------------- App Shell ---------------------------------- */
+function App() {
+  const [state, setState] = useState(loadState);
+  const [role, setRole] = useState("primary_team");
+  const [view, setView] = useState("overview");
+  const [activeRunId, setActiveRunId] = useState(null);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [newRunOpen, setNewRunOpen] = useState(false);
+  const [dark, setDark] = useState(() => localStorage.getItem("ngsqc_theme") === "dark");
+  const [toast, setToast] = useState(null);
+
+  useEffect(() => { saveState(state); }, [state]);
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", dark);
+    localStorage.setItem("ngsqc_theme", dark ? "dark" : "light");
+  }, [dark]);
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 3200);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  const runs = state.runs;
+  const notifications = state.notifications;
+
+  const updateRun = useCallback((runId, updater) => {
+    setState(s => ({ ...s, runs: s.runs.map(r => r.id === runId ? updater(r) : r) }));
+  }, []);
+  const pushNotification = useCallback((n) => {
+    setState(s => ({ ...s, notifications: [{ id: n.id || (Math.random().toString(36).slice(2)), read: false, ts: new Date().toISOString(), ...n }, ...s.notifications] }));
+  }, []);
+  const clearNotificationsForRun = useCallback((runId) => {
+    setState(s => ({ ...s, notifications: s.notifications.filter(n => n.runId !== runId) }));
+  }, []);
+  const markAllRead = useCallback(() => {
+    setState(s => ({ ...s, notifications: s.notifications.map(n => ({ ...n, read: true })) }));
+  }, []);
+
+  function advanceRun(run, fromStageId, { note, files, action } = {}) {
+    const idx = STAGE_IDX[fromStageId];
+    const stage = STAGES[idx];
+    const nextStage = STAGES[idx + 1];
+    const historyEntry = buildHistoryStep(fromStageId, note, files, stage.role, new Date().toISOString(), action || "completed");
+    const isReview = REVIEW_STAGES.has(fromStageId);
+    let nextStageId, status;
+    if (isReview && action === "rejected") {
+      nextStageId = REJECT_TARGET[fromStageId];
+      status = "in_progress";
+    } else {
+      nextStageId = nextStage.id;
+      status = nextStageId === "completed" ? "completed" : "in_progress";
+    }
+    updateRun(run.id, r => ({ ...r, currentStage: nextStageId, status, history: [...r.history, historyEntry] }));
+    clearNotificationsForRun(run.id);
+    const nextMeta = STAGES.find(s => s.id === nextStageId);
+    if (nextMeta && nextMeta.role && status !== "completed") {
+      pushNotification({ runId: run.id, role: nextMeta.role, text: `${run.code} is awaiting: ${nextMeta.title}${action === "rejected" ? " (sent back for revision)" : ""}` });
+    }
+    if (status === "completed") {
+      pushNotification({ runId: run.id, role: "primary_team", text: `${run.code} approved end-to-end — final status delivered.` });
+    }
+    setToast({
+      kind: action === "rejected" ? "warn" : "ok",
+      text: action === "rejected" ? `${run.code} sent back to Primary Team for revision.` : `${run.code} moved to “${(nextMeta || {}).title || "Completed"}”.`,
+    });
+  }
+
+  function createRun({ name, panel, sampleCount }) {
+    const code = "NGS-2026-" + String(Math.floor(100 + Math.random() * 800));
+    const id = "run-" + code.slice(-3) + "-" + Date.now().toString(36).slice(-4);
+    const now = new Date().toISOString();
+    const run = {
+      id, code, name, panel, sampleCount: Number(sampleCount) || 1, createdAt: now,
+      currentStage: "notified", status: "in_progress",
+      history: [
+        buildHistoryStep("raw_data_placed", "", [{ name: code.replace("NGS-2026-", "Run") + "_FASTQ.tar.gz", size: (20 + Math.random() * 40).toFixed(1) + " GB" }], "wetlab", now),
+        buildHistoryStep("dashboard_updated", "", [], "wetlab", now),
+      ],
+    };
+    setState(s => ({ ...s, runs: [run, ...s.runs] }));
+    pushNotification({ runId: id, role: "primary_team", text: `New raw data available for ${code} — ready to process.` });
+    setToast({ kind: "ok", text: `${code} registered and Primary Team notified.` });
+    setNewRunOpen(false);
+  }
+
+  const myPending = runs.filter(r => isRunAwaitingRole(r, role));
+  const unreadForRole = notifications.filter(n => n.role === role && !n.read).length;
+  const activeRun = runs.find(r => r.id === activeRunId) || null;
+
+  return (
+    <div style={{ display: "flex", minHeight: "100vh" }}>
+      <Sidebar view={view} setView={setView} role={role} pendingCount={myPending.length} />
+      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+        <TopBar role={role} setRole={setRole} dark={dark} setDark={setDark}
+          notifOpen={notifOpen} setNotifOpen={setNotifOpen}
+          notifications={notifications} unread={unreadForRole}
+          onOpenRun={(id) => { setActiveRunId(id); setNotifOpen(false); }}
+          markAllRead={markAllRead} onNewRun={() => setNewRunOpen(true)} />
+        <main style={{ flex: 1, padding: "24px 28px 60px", maxWidth: 1360, width: "100%", margin: "0 auto" }}>
+          {view === "overview" && (
+            <Overview role={role} runs={runs} notifications={notifications}
+              onOpenRun={setActiveRunId} onGoBoard={() => setView("board")} />
+          )}
+          {view === "board" && (
+            <Board runs={runs} role={role} onOpenRun={setActiveRunId} />
+          )}
+          {view === "runs" && (
+            <AllRuns runs={runs} onOpenRun={setActiveRunId} />
+          )}
+        </main>
+      </div>
+
+      {activeRun && (
+        <RunDetail run={activeRun} role={role} onClose={() => setActiveRunId(null)}
+          onAdvance={(opts) => advanceRun(activeRun, activeRun.currentStage, opts)} />
+      )}
+      {newRunOpen && <NewRunModal onClose={() => setNewRunOpen(false)} onCreate={createRun} />}
+      {toast && <Toast toast={toast} />}
+    </div>
+  );
+}
+
+function Toast({ toast }) {
+  return (
+    <div className="pop-in" style={{ position: "fixed", bottom: 22, left: "50%", transform: "translateX(-50%)", zIndex: 200 }}>
+      <div className="card" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", boxShadow: "var(--shadow-pop)" }}>
+        <Icon name={toast.kind === "warn" ? "info" : "check"} size={16} className="" strokeWidth={2.2}
+          style={{ color: toast.kind === "warn" ? "var(--c-warning)" : "var(--c-success)" }} />
+        <span style={{ fontSize: 13, fontWeight: 600 }}>{toast.text}</span>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------------- Sidebar ---------------------------------- */
+function Sidebar({ view, setView, role, pendingCount }) {
+  const items = [
+    { id: "overview", label: "Overview", icon: "activity" },
+    { id: "board", label: "Pipeline Board", icon: "grid" },
+    { id: "runs", label: "All Runs", icon: "list" },
+  ];
+  return (
+    <aside style={{ width: 232, flexShrink: 0, borderRight: "1px solid var(--border)", padding: "18px 14px", display: "flex", flexDirection: "column", gap: 22, position: "sticky", top: 0, height: "100vh" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 6px" }}>
+        <div style={{ width: 32, height: 32, borderRadius: 9, background: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Icon name="flask" size={17} className="" style={{ color: "#fff" }} />
+        </div>
+        <div>
+          <div style={{ fontWeight: 800, fontSize: 14.5, lineHeight: 1.1 }}>NGS · QC Hub</div>
+          <div style={{ fontSize: 10.5, color: "var(--text-faint)", fontWeight: 600 }}>Anderson Diagnostics</div>
+        </div>
+      </div>
+
+      <nav style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+        {items.map(it => (
+          <div key={it.id} className={`nav-item ${view === it.id ? "active" : ""}`} onClick={() => setView(it.id)}>
+            <Icon name={it.icon} size={16} />
+            <span style={{ flex: 1 }}>{it.label}</span>
+            {it.id === "overview" && pendingCount > 0 && (
+              <span style={{ background: "var(--c-danger)", color: "#fff", fontSize: 10.5, fontWeight: 700, borderRadius: 99, padding: "1px 6px" }}>{pendingCount}</span>
+            )}
+          </div>
+        ))}
+      </nav>
+
+      <div style={{ marginTop: "auto", padding: "12px 10px", borderRadius: 12, background: "var(--bg-sunken)", border: "1px solid var(--border)" }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 9 }}>Workflow Legend</div>
+        {ROLE_ORDER.map(rid => (
+          <div key={rid} style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 6, fontSize: 12, color: "var(--text-muted)" }}>
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: ROLES[rid].color, flexShrink: 0 }} />
+            {ROLES[rid].label}
+          </div>
+        ))}
+      </div>
+    </aside>
+  );
+}
+
+/* ---------------------------------- Top Bar ---------------------------------- */
+function TopBar({ role, setRole, dark, setDark, notifOpen, setNotifOpen, notifications, unread, onOpenRun, markAllRead, onNewRun }) {
+  const roleNotifs = notifications.filter(n => n.role === role);
+  return (
+    <header style={{ height: 62, borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px", position: "sticky", top: 0, background: "var(--bg)", zIndex: 40 }}>
+      <div>
+        <div style={{ fontSize: 15, fontWeight: 700 }}>Welcome back</div>
+        <div style={{ fontSize: 12, color: "var(--text-faint)" }}>{new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</div>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <button className="btn btn-primary" onClick={onNewRun}><Icon name="plus" size={14} strokeWidth={2.4} />New Run Entry</button>
+
+        <RoleSwitcher role={role} setRole={setRole} />
+
+        <div style={{ position: "relative" }}>
+          <div className="icon-btn" onClick={() => setNotifOpen(o => !o)} style={{ position: "relative" }}>
+            <Icon name="bell" size={18} />
+            {unread > 0 && <span style={{ position: "absolute", top: 4, right: 5, width: 7, height: 7, borderRadius: "50%", background: "var(--c-danger)" }} />}
+          </div>
+          {notifOpen && (
+            <div className="card pop-in" style={{ position: "absolute", right: 0, top: 42, width: 360, maxHeight: 420, overflowY: "auto", zIndex: 60 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", borderBottom: "1px solid var(--border)" }}>
+                <span style={{ fontWeight: 700, fontSize: 13.5 }}>Notifications</span>
+                <span onClick={markAllRead} style={{ fontSize: 11.5, color: "var(--accent)", fontWeight: 600, cursor: "pointer" }}>Mark all read</span>
+              </div>
+              {roleNotifs.length === 0 && <div style={{ padding: 24, textAlign: "center", color: "var(--text-faint)", fontSize: 12.5 }}>You're all caught up.</div>}
+              {roleNotifs.map(n => (
+                <div key={n.id} onClick={() => onOpenRun(n.runId)} style={{ display: "flex", gap: 10, padding: "11px 14px", borderBottom: "1px solid var(--border)", cursor: "pointer", background: n.read ? "transparent" : "var(--accent-soft)" }}>
+                  <Icon name="bell" size={14} className="" style={{ color: "var(--accent)", marginTop: 2, flexShrink: 0 }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 500 }}>{n.text}</div>
+                    <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 2 }}>{timeSince(n.ts)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="icon-btn" onClick={() => setDark(d => !d)}>
+          <Icon name={dark ? "sun" : "moon"} size={17} />
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function RoleSwitcher({ role, setRole }) {
+  const [open, setOpen] = useState(false);
+  const r = ROLES[role];
+  return (
+    <div style={{ position: "relative" }}>
+      <div onClick={() => setOpen(o => !o)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px 6px 6px", borderRadius: 9, border: "1px solid var(--border)", cursor: "pointer", background: "var(--bg-elevated)" }}>
+        <div style={{ width: 26, height: 26, borderRadius: 7, background: r.soft, display: "flex", alignItems: "center", justifyContent: "center", color: r.color }}>
+          <Icon name={r.icon} size={14} />
+        </div>
+        <div>
+          <div style={{ fontSize: 11, color: "var(--text-faint)", fontWeight: 600, lineHeight: 1 }}>Viewing as</div>
+          <div style={{ fontSize: 12.5, fontWeight: 700, lineHeight: 1.3 }}>{r.label}</div>
+        </div>
+        <Icon name="chevronDown" size={14} className="" style={{ color: "var(--text-faint)" }} />
+      </div>
+      {open && (
+        <div className="card pop-in" style={{ position: "absolute", right: 0, top: 44, width: 200, zIndex: 60, padding: 6 }}>
+          {ROLE_ORDER.map(rid => (
+            <div key={rid} onClick={() => { setRole(rid); setOpen(false); }}
+              style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 9px", borderRadius: 7, cursor: "pointer", background: rid === role ? "var(--bg-sunken)" : "transparent", fontSize: 13, fontWeight: 600 }}>
+              <Icon name={ROLES[rid].icon} size={14} className="" style={{ color: ROLES[rid].color }} />
+              {ROLES[rid].label}
+              {rid === role && <Icon name="check" size={13} className="" style={{ marginLeft: "auto", color: "var(--accent)" }} />}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------------------------------- Overview ---------------------------------- */
+function Overview({ role, runs, notifications, onOpenRun, onGoBoard }) {
+  const active = runs.filter(r => r.status === "in_progress");
+  const completed = runs.filter(r => r.status === "completed");
+  const pendingMine = runs.filter(r => isRunAwaitingRole(r, role));
+  const avgDays = (() => {
+    if (!completed.length) return "—";
+    const total = completed.reduce((sum, r) => sum + (new Date(r.history[r.history.length - 1].ts) - new Date(r.createdAt)) / 86400000, 0);
+    return (total / completed.length).toFixed(1);
+  })();
+  const stats = [
+    { label: "Active Runs", value: active.length, icon: "activity", color: "var(--accent)" },
+    { label: `Awaiting You (${ROLES[role].label})`, value: pendingMine.length, icon: ROLES[role].icon, color: ROLES[role].color },
+    { label: "Completed", value: completed.length, icon: "check", color: "var(--c-success)" },
+    { label: "Avg. Turnaround", value: avgDays + (avgDays !== "—" ? "d" : ""), icon: "clock", color: "var(--c-warning)" },
+  ];
+
+  const funnelCounts = STAGES.filter(s => s.id !== "completed").map(s => ({
+    stage: s, count: runs.filter(r => r.currentStage === s.id && r.status === "in_progress").length,
+  }));
+
+  const feed = [...runs.flatMap(r => r.history.map(h => ({ ...h, runCode: r.code, runId: r.id, runName: r.name })))]
+    .sort((a, b) => new Date(b.ts) - new Date(a.ts)).slice(0, 8);
+
+  return (
+    <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16 }}>
+        {stats.map(s => (
+          <div key={s.label} className="card" style={{ padding: "16px 18px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 12, color: "var(--text-faint)", fontWeight: 600 }}>{s.label}</span>
+              <div style={{ width: 28, height: 28, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg-sunken)", color: s.color }}>
+                <Icon name={s.icon} size={14} />
+              </div>
+            </div>
+            <div style={{ fontSize: 26, fontWeight: 800, marginTop: 10 }}>{s.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {pendingMine.length > 0 && (
+        <div className="card" style={{ padding: "16px 18px", borderColor: ROLES[role].color + "55" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
+              <Icon name="info" size={16} className="" style={{ color: ROLES[role].color }} />
+              Needs your action — {ROLES[role].label}
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {pendingMine.map(r => {
+              const stage = STAGES.find(s => s.id === r.currentStage);
+              return (
+                <div key={r.id} onClick={() => onOpenRun(r.id)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 10, background: "var(--bg-sunken)", cursor: "pointer" }}>
+                  <span className="mono" style={{ fontSize: 11.5, color: "var(--text-faint)", fontWeight: 700 }}>{r.code}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>{r.name}</span>
+                  {runRejectedRecently(r) && <StatusPill status="rejected" />}
+                  <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Step {stage.n}/13 · {stage.title}</span>
+                  <Icon name="chevronRight" size={15} className="" style={{ color: "var(--text-faint)" }} />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 18 }}>
+        <div className="card" style={{ padding: "16px 18px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+            <span style={{ fontSize: 14, fontWeight: 700 }}>Pipeline Funnel</span>
+            <span onClick={onGoBoard} style={{ fontSize: 12, color: "var(--accent)", fontWeight: 600, cursor: "pointer" }}>Open board →</span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {funnelCounts.map(({ stage, count }) => (
+              <div key={stage.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ width: 26, fontSize: 11, color: "var(--text-faint)", fontWeight: 700 }}>{stage.n}</span>
+                <span style={{ width: 168, fontSize: 12.5, color: "var(--text-muted)", flexShrink: 0, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{stage.title}</span>
+                <div style={{ flex: 1 }}><ProgressBar value={Math.min(100, count * 28)} color={ROLES[stage.role] ? ROLES[stage.role].color : "var(--accent)"} /></div>
+                <span style={{ width: 18, fontSize: 12, fontWeight: 700, textAlign: "right" }}>{count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="card" style={{ padding: "16px 18px" }}>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 14 }}>Recent Activity</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
+            {feed.map((h, i) => {
+              const st = STAGES.find(s => s.id === h.stageId);
+              return (
+                <div key={i} onClick={() => onOpenRun(h.runId)} style={{ display: "flex", gap: 9, cursor: "pointer" }}>
+                  <Avatar name={h.actorName} role={h.actorRole} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 12.5 }}>
+                      <b>{h.actorName}</b>{" "}
+                      <span style={{ color: "var(--text-muted)" }}>
+                        {h.action === "approved" ? "approved" : h.action === "rejected" ? "requested changes on" : "completed"}
+                      </span>{" "}
+                      <span style={{ fontWeight: 600 }}>{(st || {}).title}</span>
+                    </div>
+                    <div className="mono" style={{ fontSize: 10.5, color: "var(--text-faint)", marginTop: 2 }}>{h.runCode} · {timeSince(h.ts)}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------------- Board ---------------------------------- */
+const BOARD_GROUPS = [
+  { id: "intake", title: "Raw Data Intake", stageIds: ["raw_data_placed", "dashboard_updated", "notified"], color: "var(--c-wetlab)" },
+  { id: "processing", title: "Primary Processing", stageIds: ["drive_checked", "excel_prepared", "excel_uploaded"], color: "var(--c-primary)" },
+  { id: "approval", title: "Approval Chain", stageIds: ["primary_head_review", "wetlab_qc_review", "bioinfo_review"], color: "var(--c-phead)" },
+  { id: "signoff", title: "Final PDF & Sign-off", stageIds: ["pdf_prepared", "pdf_uploaded", "wetlab_final_review"], color: "var(--c-bhead)" },
+  { id: "done", title: "Completed", stageIds: ["completed"], color: "var(--c-success)" },
+];
+function Board({ runs, role, onOpenRun }) {
+  return (
+    <div className="fade-in">
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 19, fontWeight: 800 }}>Pipeline Board</div>
+        <div style={{ fontSize: 12.5, color: "var(--text-faint)" }}>All runs grouped by phase across the 13-step approval flow.</div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0,1fr))", gap: 14 }}>
+        {BOARD_GROUPS.map(g => {
+          const groupRuns = runs.filter(r => g.stageIds.includes(r.currentStage));
+          return (
+            <div key={g.id} style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 10, padding: "0 2px" }}>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: g.color }} />
+                <span style={{ fontSize: 12.5, fontWeight: 700 }}>{g.title}</span>
+                <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--text-faint)", fontWeight: 700 }}>{groupRuns.length}</span>
+              </div>
+              <div className="kanban-col" style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: "calc(100vh - 220px)", overflowY: "auto", paddingBottom: 8 }}>
+                {groupRuns.map(r => <RunCard key={r.id} run={r} onOpen={() => onOpenRun(r.id)} />)}
+                {groupRuns.length === 0 && <div style={{ fontSize: 11.5, color: "var(--text-faint)", padding: "10px 2px" }}>No runs</div>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+function RunCard({ run, onOpen }) {
+  const stage = STAGES.find(s => s.id === run.currentStage);
+  const pct = Math.round((STAGE_IDX[run.currentStage] / (STAGES.length - 1)) * 100);
+  const rejected = runRejectedRecently(run);
+  return (
+    <div className="card" onClick={onOpen} style={{ padding: 13, cursor: "pointer" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+        <span className="mono" style={{ fontSize: 10.5, color: "var(--text-faint)", fontWeight: 700 }}>{run.code}</span>
+        {rejected ? <StatusPill status="rejected" /> : (run.status === "completed" ? <StatusPill status="completed" /> : null)}
+      </div>
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, lineHeight: 1.3 }}>{run.name}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 9 }}>
+        {stage.role && <RoleBadge role={stage.role} size="sm" />}
+        <span style={{ fontSize: 11, color: "var(--text-faint)" }}>Step {stage.n}/13</span>
+      </div>
+      <ProgressBar value={pct} color={stage.role ? ROLES[stage.role].color : "var(--c-success)"} />
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 9 }}>
+        <span style={{ fontSize: 11, color: "var(--text-faint)" }}>{run.sampleCount} samples</span>
+        <span style={{ fontSize: 11, color: "var(--text-faint)" }}>{timeSince(run.history[run.history.length - 1].ts)}</span>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------------- All Runs (table) ---------------------------------- */
+function AllRuns({ runs, onOpenRun }) {
+  const [q, setQ] = useState("");
+  const filtered = runs.filter(r => (r.name + r.code + r.panel).toLowerCase().includes(q.toLowerCase()));
+  return (
+    <div className="fade-in">
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+        <div>
+          <div style={{ fontSize: 19, fontWeight: 800 }}>All Runs</div>
+          <div style={{ fontSize: 12.5, color: "var(--text-faint)" }}>{runs.length} total runs tracked</div>
+        </div>
+        <div style={{ position: "relative", width: 260 }}>
+          <Icon name="search" size={14} className="" style={{ position: "absolute", left: 10, top: 9, color: "var(--text-faint)" }} />
+          <input className="input" style={{ paddingLeft: 30 }} placeholder="Search runs, panels..." value={q} onChange={e => setQ(e.target.value)} />
+        </div>
+      </div>
+      <div className="card" style={{ overflow: "hidden" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ background: "var(--bg-sunken)" }}>
+              {["Run", "Panel", "Samples", "Current Step", "Owner", "Status", "Updated"].map(h => (
+                <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 11, color: "var(--text-faint)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".03em" }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map(r => {
+              const stage = STAGES.find(s => s.id === r.currentStage);
+              const rejected = runRejectedRecently(r);
+              return (
+                <tr key={r.id} onClick={() => onOpenRun(r.id)} style={{ borderTop: "1px solid var(--border)", cursor: "pointer" }}
+                  onMouseEnter={e => e.currentTarget.style.background = "var(--bg-sunken)"}
+                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                  <td style={{ padding: "11px 14px" }}>
+                    <div style={{ fontWeight: 700 }}>{r.name}</div>
+                    <div className="mono" style={{ fontSize: 10.5, color: "var(--text-faint)" }}>{r.code}</div>
+                  </td>
+                  <td style={{ padding: "11px 14px", color: "var(--text-muted)" }}>{r.panel}</td>
+                  <td style={{ padding: "11px 14px", color: "var(--text-muted)" }}>{r.sampleCount}</td>
+                  <td style={{ padding: "11px 14px", color: "var(--text-muted)" }}>{stage.n}. {stage.title}</td>
+                  <td style={{ padding: "11px 14px" }}>{stage.role ? <RoleBadge role={stage.role} size="sm" /> : "—"}</td>
+                  <td style={{ padding: "11px 14px" }}>{rejected ? <StatusPill status="rejected" /> : <StatusPill status={r.status} />}</td>
+                  <td style={{ padding: "11px 14px", color: "var(--text-faint)", fontSize: 12 }}>{timeSince(r.history[r.history.length - 1].ts)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------------- Run Detail Drawer ---------------------------------- */
+function RunDetail({ run, role, onClose, onAdvance }) {
+  const stage = STAGES.find(s => s.id === run.currentStage);
+  const canAct = run.status === "in_progress" && stage.role === role;
+  const pct = Math.round((STAGE_IDX[run.currentStage] / (STAGES.length - 1)) * 100);
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 100 }}>
+      <div className="scrim" onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(10,12,16,.45)" }} />
+      <div className="slide-in card" style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 560, maxWidth: "92vw", borderRadius: 0, borderRight: "none", borderTop: "none", borderBottom: "none", display: "flex", flexDirection: "column" }}>
+        <div style={{ padding: "18px 22px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "flex-start", gap: 12 }}>
+          <div className="icon-btn" onClick={onClose}><Icon name="arrowLeft" size={17} /></div>
+          <div style={{ flex: 1 }}>
+            <div className="mono" style={{ fontSize: 11, color: "var(--text-faint)", fontWeight: 700 }}>{run.code}</div>
+            <div style={{ fontSize: 16, fontWeight: 800 }}>{run.name}</div>
+            <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>{run.panel} · {run.sampleCount} samples · created {fmtShort(run.createdAt)}</div>
+          </div>
+          {runRejectedRecently(run) ? <StatusPill status="rejected" /> : <StatusPill status={run.status} />}
+        </div>
+
+        <div style={{ padding: "14px 22px", borderBottom: "1px solid var(--border)" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+            <span style={{ fontSize: 12, color: "var(--text-faint)", fontWeight: 600 }}>Overall progress</span>
+            <span style={{ fontSize: 12, fontWeight: 700 }}>{pct}%</span>
+          </div>
+          <ProgressBar value={pct} color={stage.role ? ROLES[stage.role].color : "var(--c-success)"} />
+        </div>
+
+        <div style={{ flex: 1, overflowY: "auto", padding: "18px 22px" }}>
+          <Timeline run={run} />
+        </div>
+
+        <div style={{ borderTop: "1px solid var(--border)", padding: "16px 22px", background: "var(--bg-sunken)" }}>
+          {run.status === "completed" ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--c-success)", fontWeight: 700, fontSize: 13.5 }}>
+              <Icon name="shieldCheck" size={17} /> Fully approved — status delivered to Primary Team.
+            </div>
+          ) : canAct ? (
+            <ActionPanel run={run} stage={stage} onAdvance={onAdvance} />
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--text-muted)", fontSize: 13 }}>
+              <Icon name="clock" size={16} />
+              Waiting on <b style={{ color: ROLES[stage.role].color, marginLeft: 4 }}>{ROLES[stage.role].label}</b>&nbsp;to complete “{stage.title}”. Switch role to act.
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Timeline({ run }) {
+  const currentIdx = STAGE_IDX[run.currentStage];
+  return (
+    <div>
+      {STAGES.map((s, i) => {
+        const histEntries = run.history.filter(h => h.stageId === s.id);
+        const isDone = i < currentIdx || (i === currentIdx && run.status === "completed");
+        const isCurrent = i === currentIdx && run.status !== "completed";
+        const wasRejectedHere = histEntries.some(h => h.action === "rejected");
+        return (
+          <div key={s.id} style={{ position: "relative", paddingLeft: 40, paddingBottom: i === STAGES.length - 1 ? 0 : 22 }}>
+            {i !== STAGES.length - 1 && (
+              <div className="stage-node-line" style={{ background: isDone ? "var(--c-success)" : "var(--border)" }} />
+            )}
+            <div style={{
+              position: "absolute", left: 0, top: 0, width: 32, height: 32, borderRadius: "50%",
+              display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800,
+              background: isDone ? "var(--c-success-soft)" : isCurrent ? (s.role ? ROLES[s.role].soft : "var(--accent-soft)") : "var(--bg-sunken)",
+              color: isDone ? "var(--c-success)" : isCurrent ? (s.role ? ROLES[s.role].color : "var(--accent)") : "var(--text-faint)",
+              border: isCurrent ? `2px solid ${s.role ? ROLES[s.role].color : "var(--accent)"}` : "2px solid transparent",
+            }}>
+              {isDone ? <Icon name="check" size={15} strokeWidth={2.6} /> : s.n}
+            </div>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 13.5, fontWeight: 700, color: isDone || isCurrent ? "var(--text)" : "var(--text-faint)" }}>{s.title}</span>
+                {s.role && <RoleBadge role={s.role} size="sm" />}
+                {isCurrent && <span className="badge" style={{ background: "var(--c-warning-soft)", color: "var(--c-warning)" }}>Current</span>}
+              </div>
+              <div style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 2 }}>{s.desc}</div>
+              {histEntries.map((h, hi) => (
+                <div key={hi} style={{ marginTop: 8, padding: "9px 11px", borderRadius: 9, background: h.action === "rejected" ? "var(--c-danger-soft)" : "var(--bg-sunken)", border: "1px solid var(--border)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                    <Avatar name={h.actorName} role={h.actorRole} />
+                    <span style={{ fontSize: 12, fontWeight: 700 }}>{h.actorName}</span>
+                    <span style={{ fontSize: 11.5, color: h.action === "rejected" ? "var(--c-danger)" : "var(--c-success)", fontWeight: 700 }}>
+                      {h.action === "approved" ? "· approved" : h.action === "rejected" ? "· requested changes" : "· done"}
+                    </span>
+                    <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--text-faint)" }}>{fmtDate(h.ts)}</span>
+                  </div>
+                  {h.note && <div style={{ fontSize: 12.5, marginTop: 6, color: "var(--text)" }}>“{h.note}”</div>}
+                  {h.files && h.files.length > 0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 7 }}>
+                      {h.files.map((f, fi) => (
+                        <span key={fi} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, padding: "4px 8px", borderRadius: 7, background: "var(--bg-elevated)", border: "1px solid var(--border)" }}>
+                          <Icon name="fileText" size={12} className="" style={{ color: "var(--text-faint)" }} />{f.name}
+                          <span style={{ color: "var(--text-faint)" }}>· {f.size}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ---------------------------------- Action Panel ---------------------------------- */
+function ActionPanel({ run, stage, onAdvance }) {
+  const [note, setNote] = useState("");
+  const [files, setFiles] = useState([]);
+  const isReview = REVIEW_STAGES.has(stage.id);
+  const needsFiles = ["drive_checked", "excel_prepared", "excel_uploaded", "pdf_prepared", "pdf_uploaded"].includes(stage.id);
+
+  function mockAttach(labelHint) {
+    const suffix = labelHint || "file";
+    const name = `${run.code.replace("NGS-2026-", "Run")}_${suffix}`;
+    const sizeKb = Math.round(80 + Math.random() * 900);
+    setFiles(f => [...f, { name, size: sizeKb > 1000 ? (sizeKb / 1000).toFixed(1) + " MB" : sizeKb + " KB" }]);
+  }
+  const attachLabel = {
+    drive_checked: "raw_backup.xlsx", excel_prepared: "Consolidated_draft.xlsx", excel_uploaded: "Consolidated.xlsx",
+    pdf_prepared: "Report_draft.pdf", pdf_uploaded: "Consolidated_Report.pdf",
+  }[stage.id];
+
+  const primaryLabel = {
+    raw_data_placed: "Confirm Raw Data Placed", dashboard_updated: "Push Dashboard Update & Notify",
+    drive_checked: "Validate & Upload Backup", excel_prepared: "Save Consolidated Excel",
+    excel_uploaded: "Upload & Send for Approval", pdf_prepared: "Save Consolidated PDF",
+    pdf_uploaded: "Upload PDF to Dashboard",
+  }[stage.id] || "Mark Complete";
+
+  if (isReview) {
+    return (
+      <div>
+        <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 8, color: "var(--text-muted)" }}>
+          {stage.id === "wetlab_final_review" ? "Review the uploaded PDF and record your decision:" : "Review the consolidated Excel and record your decision:"}
+        </div>
+        <textarea className="input" rows={2} placeholder="Add a note (required if requesting changes)…" value={note} onChange={e => setNote(e.target.value)} style={{ resize: "vertical", marginBottom: 10 }} />
+        <div style={{ display: "flex", gap: 10 }}>
+          <button className="btn btn-primary" style={{ flex: 1, justifyContent: "center" }}
+            onClick={() => onAdvance({ note, action: "approved" })}>
+            <Icon name="check" size={15} strokeWidth={2.4} />Approve
+          </button>
+          <button className="btn btn-danger" style={{ flex: 1, justifyContent: "center" }}
+            disabled={!note.trim()}
+            onClick={() => onAdvance({ note, action: "rejected" })}>
+            <Icon name="x" size={15} strokeWidth={2.4} />Request Changes
+          </button>
+        </div>
+        {!note.trim() && <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 6 }}>A note is required to request changes.</div>}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {needsFiles && (
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+            {files.map((f, i) => (
+              <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, padding: "5px 9px", borderRadius: 7, background: "var(--bg-elevated)", border: "1px solid var(--border)" }}>
+                <Icon name="fileText" size={12} />{f.name}<span style={{ color: "var(--text-faint)" }}>· {f.size}</span>
+              </span>
+            ))}
+          </div>
+          <button className="btn btn-secondary" onClick={() => mockAttach(attachLabel)}>
+            <Icon name="paperclip" size={14} />Attach {attachLabel}
+          </button>
+        </div>
+      )}
+      <div style={{ display: "flex", gap: 10 }}>
+        <button className="btn btn-primary" style={{ flex: 1, justifyContent: "center" }}
+          disabled={needsFiles && files.length === 0}
+          onClick={() => onAdvance({ note, files })}>
+          <Icon name="upload" size={15} strokeWidth={2.3} />{primaryLabel}
+        </button>
+      </div>
+      {needsFiles && files.length === 0 && <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 6 }}>Attach the required file before continuing.</div>}
+    </div>
+  );
+}
+
+/* ---------------------------------- New Run Modal ---------------------------------- */
+function NewRunModal({ onClose, onCreate }) {
+  const [name, setName] = useState("");
+  const [panel, setPanel] = useState("");
+  const [sampleCount, setSampleCount] = useState(24);
+  const valid = name.trim() && panel.trim() && sampleCount > 0;
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 110, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div className="scrim" onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(10,12,16,.5)" }} />
+      <div className="card pop-in" style={{ position: "relative", width: 460, maxWidth: "92vw", padding: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+          <div style={{ width: 34, height: 34, borderRadius: 9, background: "var(--c-wetlab-soft)", color: "var(--c-wetlab)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Icon name="flask" size={17} />
+          </div>
+          <div>
+            <div style={{ fontSize: 15.5, fontWeight: 800 }}>Register New Run</div>
+            <div style={{ fontSize: 11.5, color: "var(--text-faint)" }}>Wet Lab · Step 1–2 of the workflow</div>
+          </div>
+        </div>
+        <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "12px 0 16px" }}>
+          Confirms raw FASTQ / CSV / Excel / Md5sum have been placed on the common drive and pushes the dashboard update that notifies the Primary Team.
+        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>Run / batch name</label>
+            <input className="input" style={{ marginTop: 4 }} placeholder="e.g. Oncology Panel — Batch 052" value={name} onChange={e => setName(e.target.value)} />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>Panel / assay</label>
+            <input className="input" style={{ marginTop: 4 }} placeholder="e.g. TruSight Oncology 500" value={panel} onChange={e => setPanel(e.target.value)} />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>Sample count</label>
+            <input className="input" style={{ marginTop: 4 }} type="number" min={1} value={sampleCount} onChange={e => setSampleCount(e.target.value)} />
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+          <button className="btn btn-secondary" style={{ flex: 1, justifyContent: "center" }} onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" style={{ flex: 1, justifyContent: "center" }} disabled={!valid}
+            onClick={() => onCreate({ name, panel, sampleCount })}>
+            <Icon name="upload" size={14} />Place & Notify
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

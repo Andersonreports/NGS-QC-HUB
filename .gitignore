@@ -1,0 +1,15 @@
+backend/.venv/
+backend/data/
+__pycache__/
+*.pyc
+node_modules/
+frontend/dist/
+.DS_Store
+
+# Reference files dropped at the project root for design/testing purposes — not
+# part of the app, and some contain real patient data or internal report drafts.
+*.xlsx
+*.xls
+photo_*.jpg
+photo_*.png
+.~lock.*
