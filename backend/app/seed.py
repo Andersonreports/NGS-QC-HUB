@@ -6,7 +6,7 @@ DEFAULT_ACCOUNTS = [
     {"username": "wetlab", "full_name": "Wet Lab Team", "role": "wetlab", "password": "wetlab@123"},
     {"username": "sethu", "full_name": "Sethu", "role": "primary_team", "password": "sethu@123"},
     {"username": "tamilarasu", "full_name": "Tamilarasu", "role": "primary_head", "password": "tamilarasu@123"},
-    {"username": "muthukumaran", "full_name": "Dr. Muthukumaran", "role": "bioinfo_head", "password": "muthukumaran@123"},
+    {"username": "dr.muthukumaran", "full_name": "Dr. Muthukumaran", "role": "bioinfo_head", "password": "muthukumaran@123"},
 ]
 
 
