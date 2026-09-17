@@ -6,7 +6,7 @@ export default function AttachmentList({ runNumber, attachments }) {
   const [error, setError] = useState(null);
   return (
     <div className="space-y-1.5">
-      {error && <p className="text-xs text-red-700">{error}</p>}
+      {error && <p className="text-xs text-accent-900">{error}</p>}
       {attachments.map((a) => (
         <button
           key={a.id}

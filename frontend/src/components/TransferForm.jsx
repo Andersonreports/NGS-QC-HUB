@@ -44,7 +44,7 @@ export default function TransferForm({ onCreated }) {
       {created && (
         <div className="mb-4">
           <Alert kind="success" onDismiss={() => setCreated(null)}>
-            Run <span className="font-mono font-bold">{created}</span> marked as Transferred — Primary Team
+            Run <span className="font-mono font-bold">{created}</span> marked as Transferred. Primary Team
             has been notified.
           </Alert>
         </div>

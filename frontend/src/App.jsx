@@ -7,12 +7,13 @@ import ApprovalStatus from "./components/ApprovalStatus";
 import Login from "./components/Login";
 import MonthlyReport from "./components/MonthlyReport";
 import PendingRuns from "./components/PendingRuns";
-import UploadWorkspace from "./components/UploadWorkspace";
 import RunHistory from "./components/RunHistory";
 import Toasts from "./components/Toasts";
 import TopBar from "./components/TopBar";
 import TransferForm from "./components/TransferForm";
+import UnreadDigest from "./components/UnreadDigest";
 import { Alert } from "./components/ui";
+import { playChime } from "./sound";
 
 const POLL_MS = 10000;
 
@@ -26,6 +27,7 @@ export default function App() {
   const [runs, setRuns] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [toasts, setToasts] = useState([]);
+  const [unreadDigest, setUnreadDigest] = useState([]);
   const [tab, setTab] = useState(() => defaultTabFor());
   const [viewingRun, setViewingRun] = useState(null);
   const [loadError, setLoadError] = useState(null);
@@ -33,10 +35,15 @@ export default function App() {
 
   const seenNotifications = useRef(null);
 
+  // Most toasts (a "Saved" confirmation after your own action) auto-dismiss —
+  // they're just acknowledging something you already know happened. A `sticky`
+  // toast (someone else's update arriving — a new transfer, an approval) stays
+  // until you dismiss it yourself, since those are easy to miss if you're not
+  // looking at the screen the moment they appear.
   const pushToast = useCallback((toast) => {
     const id = Math.random().toString(36).slice(2);
     setToasts((t) => [...t, { id, ...toast }]);
-    if (toast.kind !== "error") {
+    if (toast.kind !== "error" && !toast.sticky) {
       setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 8000);
     }
   }, []);
@@ -51,18 +58,37 @@ export default function App() {
       setNotifications(notifData);
       setLoadError(null);
 
-      // Float a toast for anything that arrived since the last poll.
-      const unreadIds = notifData.filter((n) => !n.read).map((n) => n.id);
-      if (seenNotifications.current === null) {
-        seenNotifications.current = new Set(unreadIds);
+      // On the very first load of a fresh page/tab, whatever's already unread
+      // goes into one centered digest — impossible to miss, and not a pile of
+      // separate corner banners. Anything that arrives afterward, while this
+      // session is already open and being watched, still gets its own corner
+      // toast — that's a live update, not a summary of what was missed. A QC
+      // fail is the one exception: it always gets the centered floating
+      // banner, live or not, since it's important enough that a small corner
+      // toast isn't enough.
+      const isFirstLoad = seenNotifications.current === null;
+      if (isFirstLoad) seenNotifications.current = new Set();
+      const arrived = notifData.filter((n) => !n.read && !seenNotifications.current.has(n.id));
+      if (arrived.length > 0) playChime();
+      arrived.forEach((n) => seenNotifications.current.add(n.id));
+
+      const withRunNumber = (n) => ({ ...n, runNumber: runsData.find((r) => r.id === n.run_id)?.run_number });
+      const qcFails = arrived.filter((n) => n.kind === "qc_fail");
+      const rest = arrived.filter((n) => n.kind !== "qc_fail");
+
+      if (qcFails.length > 0) {
+        setUnreadDigest((current) => [...current, ...qcFails.map(withRunNumber)]);
+      }
+
+      if (isFirstLoad) {
+        if (rest.length > 0) {
+          setUnreadDigest((current) => [...current, ...rest.map(withRunNumber)]);
+        }
       } else {
-        notifData
-          .filter((n) => !n.read && !seenNotifications.current.has(n.id))
-          .forEach((n) => {
-            seenNotifications.current.add(n.id);
-            const run = runsData.find((r) => r.id === n.run_id);
-            pushToast({ title: "New update", text: n.text, runNumber: run?.run_number });
-          });
+        rest.forEach((n) => {
+          const run = runsData.find((r) => r.id === n.run_id);
+          pushToast({ kind: "notification", sticky: true, title: "New update", text: n.text, runNumber: run?.run_number });
+        });
       }
     } catch (err) {
       setLoadError(err.message);
@@ -88,8 +114,8 @@ export default function App() {
     setToasts([]);
   }
 
-  // The header's height changes with the tab bar, so publish it for the sticky
-  // preview panes instead of hard-coding an offset they'd drift out of sync with.
+  // Publish the page header's height for the sticky preview panes below, instead
+  // of hard-coding an offset they'd drift out of sync with.
   useEffect(() => {
     const header = document.querySelector("header");
     if (!header) return;
@@ -122,14 +148,15 @@ export default function App() {
   }
 
   const pendingCount = runs.filter((r) => isAwaiting(r, user.role)).length;
-  // No separate "all runs" tab: My work already ends with the counts and the full run list.
+  // "Uploads & preview" was dropped — My work's own search already finds a run and
+  // opens the same files/preview/status view, so a second screen for that was just
+  // a duplicate. There's no separate admin account — Primary Team Head manages
+  // team logins directly.
   const tabs = [
-    { id: "work", label: "My work", badge: pendingCount },
-    { id: "uploads", label: user.role === "primary_team" ? "Uploads & preview" : "Files & preview" },
-    { id: "monthly", label: "Monthly Report" },
-    ...(user.role === "admin" ? [{ id: "admin", label: "Accounts" }] : []),
+    { id: "work", label: "My work", badge: pendingCount, icon: "clock" },
+    { id: "monthly", label: "Monthly Report", icon: "file" },
+    ...(user.role === "primary_head" ? [{ id: "admin", label: "User Management", icon: "users" }] : []),
   ];
-
   return (
     <div className="min-h-screen">
       <TopBar
@@ -174,12 +201,6 @@ export default function App() {
             onChanged={afterChange}
             pushToast={pushToast}
           />
-        ) : tab === "uploads" ? (
-          <UploadWorkspace
-            user={user}
-            onViewRun={setViewingRun}
-            onChanged={() => afterChange("Uploaded — the run moved to the next step.")}
-          />
         ) : tab === "monthly" ? (
           <MonthlyReport user={user} onViewRun={setViewingRun} />
         ) : (
@@ -188,6 +209,14 @@ export default function App() {
       </main>
 
       <Toasts toasts={toasts} onDismiss={dismissToast} onOpen={setViewingRun} />
+      <UnreadDigest
+        items={unreadDigest}
+        onDismiss={() => setUnreadDigest([])}
+        onOpen={(n) => {
+          setViewingRun(n.runNumber);
+          setUnreadDigest([]);
+        }}
+      />
     </div>
   );
 }
@@ -224,37 +253,35 @@ function WorkView({ user, runs, onViewRun, onChanged, pushToast }) {
     );
   }
 
-  const overview = <WorkflowOverview {...shared} />;
-
-  if (user.role === "admin") {
-    return (
-      <>
-        {overview}
-        <Alert kind="info">
-          You are signed in as an administrator. Use the <strong>Accounts</strong> tab to manage team
-          logins — the workflow steps belong to the team accounts.
-        </Alert>
-      </>
-    );
-  }
-
-  return overview;
+  return <WorkflowOverview {...shared} />;
 }
 
 /** The shared work/status layout used by every workflow role. `leftExtra` is
  * role-specific content (Wet Lab's "start a new transfer" form) that goes above
- * the pending-runs list in the left column, so that column isn't left empty just
- * because nothing happens to be awaiting that role right now. */
+ * the pending-runs list in the left column. When neither that nor any pending run
+ * exists — nothing currently awaits this role — the left column is dropped
+ * entirely rather than reserved as dead space; Dashboard and Approval status
+ * split the width instead. */
 function WorkflowOverview({ user, runs, onViewRun, onChanged, leftExtra }) {
+  const hasLeftContent = Boolean(leftExtra) || runs.some((r) => isAwaiting(r, user.role));
+
   // Three columns side by side on desktop, each scrolling internally within a fixed
   // height (matching the header) so the page itself never grows as runs pile up.
   // On narrower screens they stack instead, each falling back to its own capped height.
   return (
-    <div className="grid grid-cols-1 gap-4 items-stretch lg:grid-cols-[minmax(16rem,1.1fr)_minmax(0,2fr)_minmax(16rem,1.1fr)] lg:h-[calc(100vh-var(--header-h,7.5rem)-3rem)]">
-      <div className={`min-w-0 lg:h-full ${leftExtra ? "space-y-4 lg:overflow-y-auto" : "lg:overflow-hidden"}`}>
-        {leftExtra}
-        <PendingRuns runs={runs} user={user} onChanged={onChanged} onViewRun={onViewRun} title="Action Required" />
-      </div>
+    <div
+      className={`grid grid-cols-1 gap-4 items-stretch lg:h-[calc(100vh-var(--header-h,7.5rem)-3rem)] ${
+        hasLeftContent
+          ? "lg:grid-cols-[minmax(16rem,1.1fr)_minmax(0,2fr)_minmax(16rem,1.1fr)]"
+          : "lg:grid-cols-[minmax(0,2fr)_minmax(16rem,1.1fr)]"
+      }`}
+    >
+      {hasLeftContent && (
+        <div className={`min-w-0 lg:h-full ${leftExtra ? "space-y-4 lg:overflow-y-auto" : "lg:overflow-hidden"}`}>
+          {leftExtra}
+          <PendingRuns runs={runs} user={user} onChanged={onChanged} onViewRun={onViewRun} title="Action Required" />
+        </div>
+      )}
       <div className="min-w-0 lg:h-full lg:overflow-hidden">
         <Dashboard user={user} runs={runs} onViewRun={onViewRun} />
       </div>

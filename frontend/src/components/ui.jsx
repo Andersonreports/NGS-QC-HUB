@@ -20,6 +20,9 @@ const ICON_PATHS = {
   chevronRight: "M9 6l6 6-6 6",
   panelLeft: "M4 4h16v16H4z M10 4v16",
   pin: "M12 21s-6.5-6.3-6.5-10.8a6.5 6.5 0 1 1 13 0C18.5 14.7 12 21 12 21z M12 12.7a2.3 2.3 0 1 0 0-4.6 2.3 2.3 0 0 0 0 4.6z",
+  hourglass: "M5 22h14 M5 2h14 M17 22v-4.17a2 2 0 0 0-.59-1.41L12 12l-4.41 4.41a2 2 0 0 0-.59 1.42V22 M7 2v4.17a2 2 0 0 0 .59 1.41L12 12l4.41-4.41A2 2 0 0 0 17 6.17V2",
+  alertTriangle: "M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z M12 9v4 M12 17h.01",
+  notepadPen: "M6 2.5h9l4 4v15h-13z M15 2.5v4h4 M8.5 12h5.5 M14 17.2l4.3-4.3 1.6 1.6-4.3 4.3-2.1.5z",
 };
 
 export function Icon({ name, size = 18, className = "", strokeWidth = 1.8 }) {
@@ -43,11 +46,14 @@ export function Icon({ name, size = 18, className = "", strokeWidth = 1.8 }) {
   );
 }
 
+/** Role identity, as a small colored dot plus label — never a filled pill, so it
+ * doesn't compete with the one badge per row that actually matters. */
 export function RoleChip({ role }) {
   const r = ROLES[role];
   if (!r) return null;
   return (
-    <span className="chip" style={{ background: r.soft, color: r.color }}>
+    <span className="inline-flex items-center gap-1.5 text-xs font-semibold whitespace-nowrap" style={{ color: r.color }}>
+      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: r.color }} />
       {r.label}
     </span>
   );
@@ -55,13 +61,13 @@ export function RoleChip({ role }) {
 
 export function StatusChip({ run }) {
   if (run.status === "completed") {
-    return <span className="chip bg-emerald-100 text-emerald-800">Completed</span>;
+    return <span className="chip bg-brand-100 text-brand-800">Completed</span>;
   }
   const last = run.history?.[run.history.length - 1];
-  if (last?.action === "rejected") {
-    return <span className="chip bg-red-100 text-red-800">Sent back</span>;
+  if (last?.action === "rejected" || last?.action === "reset") {
+    return <span className="chip bg-accent-300 text-accent-900">Sent back</span>;
   }
-  return <span className="chip bg-amber-100 text-amber-800">In progress</span>;
+  return <span className="chip bg-accent-100 text-accent-800">In progress</span>;
 }
 
 export function StageChip({ stageId }) {
@@ -86,9 +92,9 @@ export function Spinner({ className = "" }) {
 export function Alert({ kind = "info", children, onDismiss }) {
   const styles = {
     info: "bg-brand-50 text-brand-900 border-brand-200",
-    success: "bg-emerald-50 text-emerald-900 border-emerald-200",
-    error: "bg-red-50 text-red-900 border-red-200",
-    warn: "bg-amber-50 text-amber-900 border-amber-200",
+    success: "bg-brand-50 text-brand-900 border-brand-200",
+    error: "bg-accent-200 text-accent-900 border-accent-400",
+    warn: "bg-accent-50 text-accent-900 border-accent-200",
   }[kind];
   return (
     <div className={`flex items-start gap-2.5 border rounded-lg px-3.5 py-3 text-sm ${styles}`}>

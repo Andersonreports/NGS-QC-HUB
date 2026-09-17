@@ -1,3 +1,4 @@
+import shutil
 import uuid
 from collections import defaultdict
 from pathlib import Path
@@ -16,6 +17,7 @@ from ..workflow import (
     actor_name_for, can_see_stage, visible_history,
 )
 from ..sheet_ingest import ingest_consolidated_excel, looks_like_excel
+from ..email_notify import send_new_transfer_email
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 
@@ -52,13 +54,13 @@ def _unique_path(directory: Path, filename: str) -> Path:
     return directory / f"{stem}_v{n}{suffix}"
 
 
-def _push_notification(db: Session, run: models.Run, role: str, text: str):
+def _push_notification(db: Session, run: models.Run, role: str, text: str, kind: str = "update"):
     if not role:
         return
-    db.add(models.Notification(run_id=run.id, role=role, text=text))
+    db.add(models.Notification(run_id=run.id, role=role, text=text, kind=kind))
 
 
-def _push_stage_notifications(db: Session, run: models.Run, stage_id: str, sent_back: bool = False):
+def _push_stage_notifications(db: Session, run: models.Run, stage_id: str, sent_back: bool = False, kind: str = "update"):
     """Keep every workflow role informed, while making the action owner clear."""
     stage = STAGE_BY_ID[stage_id]
     if stage_id == "completed":
@@ -74,16 +76,18 @@ def _push_stage_notifications(db: Session, run: models.Run, stage_id: str, sent_
     for role in ROLES:
         if role == owner:
             suffix = " A revision was requested." if sent_back else ""
-            text = f"Run {run.run_number}: action needed — {owner_title}.{suffix}"
+            text = f"Run {run.run_number}: action needed ({owner_title}).{suffix}"
         else:
-            text = f"Run {run.run_number} is at {owner_title} — awaiting {ROLE_LABELS[owner]}."
-        _push_notification(db, run, role, text)
+            text = f"Run {run.run_number} is at {owner_title}, awaiting {ROLE_LABELS[owner]}."
+        _push_notification(db, run, role, text, kind=kind)
 
 
 def _send_back_state(history: list, run_status: str) -> dict:
     """Send-back tracking shared by the list and detail responses: how often a reviewer
-    asked for changes, and whether the file has been re-uploaded since the last one."""
-    rejections = [h for h in history if h.action == "rejected"]
+    asked for changes (or Primary Team removed an already-reviewed file, which the same
+    way needs a re-upload and a fresh trip through approval), and whether the file has
+    been re-uploaded since the last one."""
+    rejections = [h for h in history if h.action in ("rejected", "reset")]
     state = {
         "rejection_count": len(rejections),
         "last_activity_by": history[-1].actor_name if history else None,
@@ -216,14 +220,50 @@ def create_run(
         actor_name="System", actor_role="primary_team",
     ))
 
-    _push_stage_notifications(db, run, run.current_stage)
+    _push_stage_notifications(db, run, run.current_stage, kind="new_transfer")
     db.commit()
+    send_new_transfer_email(run.run_number, run.created_at)
     return _detail_out(_run_or_404(db, run.run_number), user.role)
 
 
 @router.get("/{run_number}", response_model=schemas.RunDetailOut)
 def get_run(run_number: str, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
     return _detail_out(_run_or_404(db, run_number), user.role)
+
+
+@router.delete("/{run_number}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_run(
+    run_number: str,
+    db: Session = Depends(get_db), user: models.User = Depends(require_role("bioinfo_head")),
+):
+    """Permanently remove a run and everything on it — history, files, the live
+    sheet, notifications. Bioinfo Team Head only, since they're the last sign-off
+    and best placed to judge a run was created in error. There's no undo."""
+    run = _run_or_404(db, run_number)
+
+    stored_paths = [
+        Path(a.stored_path)
+        for entry in run.history
+        for a in entry.attachments
+    ]
+
+    db.query(models.Notification).filter(models.Notification.run_id == run.id).delete()
+
+    sheet = db.query(models.Sheet).filter(models.Sheet.run_id == run.id).first()
+    if sheet:
+        db.query(models.SheetAnnotation).filter(models.SheetAnnotation.sheet_id == sheet.id).delete()
+        db.query(models.SheetRow).filter(models.SheetRow.sheet_id == sheet.id).delete()
+        db.delete(sheet)
+
+    db.delete(run)  # cascades to history entries, which cascade to their attachments
+    db.commit()
+
+    for path in stored_paths:
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            pass
+    shutil.rmtree(UPLOADS_DIR / run_number, ignore_errors=True)
 
 
 @router.post("/{run_number}/advance", response_model=schemas.RunDetailOut)
@@ -430,7 +470,7 @@ def delete_attachment(
                 run_id=run.id,
                 stage_id=stage_id,
                 action="reset",
-                note=f"{filename} was removed by {user.full_name} — awaiting re-upload.",
+                note=f"{filename} was removed by {user.full_name}. Awaiting re-upload.",
                 actor_user_id=user.id,
                 actor_name=user.full_name,
                 actor_role=user.role,
@@ -438,13 +478,13 @@ def delete_attachment(
             for role in ROLLBACK_NOTIFY_ROLES.get(stage_id, []):
                 _push_notification(
                     db, run, role,
-                    f"Run {run.run_number}: {user.full_name} removed {filename} — "
-                    f"your approval no longer holds. Primary Team must re-upload it "
+                    f"Run {run.run_number}: {user.full_name} removed {filename}. "
+                    f"Your approval no longer holds. Primary Team must re-upload it "
                     f"before this can be reviewed again.",
                 )
             _push_notification(
                 db, run, "primary_team",
-                f"Run {run.run_number}: {filename} was removed — re-upload it to continue.",
+                f"Run {run.run_number}: {filename} was removed. Re-upload it to continue.",
             )
 
     db.commit()

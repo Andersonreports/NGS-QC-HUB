@@ -1,5 +1,7 @@
 backend/.venv/
 backend/data/
+backend/.env
+backend/server.log
 __pycache__/
 *.pyc
 node_modules/

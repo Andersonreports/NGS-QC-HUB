@@ -166,6 +166,7 @@ class NotificationOut(BaseModel):
     run_id: str
     role: str
     text: str
+    kind: str = "update"
     read: bool
     created_at: datetime
 
@@ -197,3 +198,8 @@ class MonthlyReportOut(BaseModel):
     month: int
     runs: List[MonthlyReportRunOut]
     totals: MonthlyReportTotalsOut
+
+
+class MonthlyReportCellEdit(BaseModel):
+    field: str
+    value: str = ""

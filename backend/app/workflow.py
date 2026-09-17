@@ -53,7 +53,7 @@ STAGES = [
      "title": "Wet Lab PDF approval",
      "desc": "Wet Lab views the consolidated PDF and approves, with optional notes or corrections."},
     {"id": "completed", "step": "12", "role": None,
-     "title": "Samples approved — moved to Tertiary team for analysis",
+     "title": "Samples approved, moved to Tertiary team for analysis",
      "desc": "Every approval is in; the samples are handed off to the Tertiary team for analysis. "
              "All approvals, timestamps and Wet Lab notes remain available to the Primary Team."},
 ]
@@ -97,7 +97,6 @@ HIDDEN_STAGES_FOR_ROLE = {
     "primary_head": {"notified", "drive_checked"},
     "bioinfo_head": {"notified", "drive_checked"},
     "primary_team": set(),
-    "admin": set(),
 }
 
 

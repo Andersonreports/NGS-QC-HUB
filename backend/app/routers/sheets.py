@@ -11,6 +11,7 @@ from .. import models, schemas
 from ..database import get_db
 from ..deps import get_current_user
 from ..sheet_ingest import ingest_consolidated_excel, list_sheet_names, looks_like_excel
+from ..workflow import ROLES
 
 router = APIRouter(prefix="/api/runs/{run_number}/sheet", tags=["sheets"])
 
@@ -149,6 +150,31 @@ def edit_cell(
     return _sheet_out(sheet, user, db)
 
 
+def _sample_label(sheet: models.Sheet, row: models.SheetRow) -> str | None:
+    """Best guess at which sample a row is — whichever column name mentions
+    "sample", if the ingested tab has one at all."""
+    columns = json.loads(sheet.columns_json)
+    cells = json.loads(row.cells_json)
+    for col in columns:
+        if "sample" in col.lower():
+            value = cells.get(col)
+            if value:
+                return str(value)
+    return None
+
+
+def _notify_qc_fail(db: Session, sheet: models.Sheet, row: models.SheetRow) -> None:
+    """Dashboard notification only — every role, not just Bioinfo Head, since a
+    QC fail is relevant to the whole team. Tagged with its own `kind` so the
+    frontend can call it out distinctly (red) from routine stage updates."""
+    run = sheet.run
+    sample_label = _sample_label(sheet, row)
+    text = f"Run {run.run_number}: QC fail recorded" + (f" for sample {sample_label}" if sample_label else "") + "."
+    for role in ROLES:
+        db.add(models.Notification(run_id=run.id, role=role, text=text, kind="qc_fail"))
+    db.commit()
+
+
 @router.patch("/qc", response_model=schemas.SheetOut)
 def edit_qc(
     run_number: str, payload: schemas.SheetRowQCEdit,
@@ -161,9 +187,11 @@ def edit_qc(
     if not row:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "That row no longer exists")
 
+    newly_failed = False
     if payload.qc_pass is not None:
         if payload.qc_pass not in QC_PASS_VALUES:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, f"qc_pass must be one of {sorted(QC_PASS_VALUES)}")
+        newly_failed = payload.qc_pass == "Fail" and row.qc_pass != "Fail"
         row.qc_pass = payload.qc_pass
     if payload.resequencing is not None:
         if payload.resequencing not in RESEQUENCING_VALUES:
@@ -173,6 +201,10 @@ def edit_qc(
     sheet.updated_at = models.now_utc()
     db.commit()
     db.refresh(sheet)
+
+    if newly_failed:
+        _notify_qc_fail(db, sheet, row)
+
     return _sheet_out(sheet, user, db)
 
 

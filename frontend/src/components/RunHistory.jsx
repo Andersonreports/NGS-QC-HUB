@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import {
-  ROLES,
   STAGE_BY_ID,
   STAGE_INDEX,
   canSeeStage,
@@ -94,6 +93,25 @@ export default function RunHistory({ runNumber, user, onBack, onChanged, onSilen
     onSilentChange?.();
   }
 
+  const [deletingRun, setDeletingRun] = useState(false);
+  async function handleDeleteRun() {
+    if (
+      !window.confirm(
+        `Permanently remove run ${runNumber}? Its files and history will be deleted for good. This can't be undone.`
+      )
+    )
+      return;
+    setDeletingRun(true);
+    try {
+      await api.deleteRun(runNumber);
+      onSilentChange?.();
+      onBack();
+    } catch (err) {
+      setError(err.message);
+      setDeletingRun(false);
+    }
+  }
+
   if (error) {
     return (
       <div className="space-y-4">
@@ -147,47 +165,51 @@ export default function RunHistory({ runNumber, user, onBack, onChanged, onSilen
         {currentVisible && STAGE_BY_ID[run.current_stage].role && (
           <RoleChip role={STAGE_BY_ID[run.current_stage].role} />
         )}
+        {role === "bioinfo_head" && (
+          <button
+            onClick={handleDeleteRun}
+            disabled={deletingRun}
+            className="ml-auto text-xs font-bold text-accent-800 hover:text-accent-900 flex items-center gap-1.5"
+            title="Permanently remove this run"
+          >
+            {deletingRun ? <Spinner /> : <Icon name="x" size={13} strokeWidth={2.4} />}
+            Remove run
+          </button>
+        )}
       </div>
 
-      {/* Left: whatever action is open plus every uploaded file. Middle: the sample
-          counts, then the preview. Right: the full step-by-step status history. Each
-          column scrolls on its own, within a fixed-height row, instead of growing
-          the whole page. */}
+      {/* The action itself — Approve/Reject or Upload — sits at the very top,
+          full width, above the three columns below. It's the one thing that
+          matters most on this page when it's your turn, so it shouldn't be
+          something you have to scroll a narrow column to find. */}
+      {actionable && (
+        <section className="card p-3.5 border-l-4 border-l-accent-600 shrink-0">
+          {!STAGE_BY_ID[run.current_stage].review && (
+            <header className="mb-3">
+              <h2 className="text-base font-bold">
+                {STAGE_BY_ID[run.current_stage].heading || STAGE_BY_ID[run.current_stage].title}
+              </h2>
+              <p className="text-sm text-slate-500 mt-0.5">This run is waiting on you.</p>
+            </header>
+          )}
+          <RunActionForm
+            run={run}
+            user={user}
+            compact
+            onDone={(updated) => {
+              setRun(updated);
+              onChanged?.();
+            }}
+          />
+        </section>
+      )}
+
+      {/* Left: every uploaded file. Middle: the sample counts, then the preview.
+          Right: the full step-by-step status history. Each column scrolls on its
+          own, within a fixed-height row, instead of growing the whole page. */}
       <div className={`grid grid-cols-1 gap-4 items-stretch ${gridCols} lg:grid-rows-[minmax(0,1fr)] lg:flex-1 lg:min-h-0 lg:overflow-hidden`}>
         {leftOpen && (
         <div className="min-w-0 space-y-4 lg:h-full lg:overflow-y-auto">
-          {actionable && (
-            <section className="card p-5 border-l-4 border-l-accent-600">
-              <header className="mb-3">
-                <h2 className="text-base font-bold">
-                {STAGE_BY_ID[run.current_stage].heading || STAGE_BY_ID[run.current_stage].title}
-              </h2>
-                <p className="text-sm text-slate-500 mt-0.5">This run is waiting on you.</p>
-              </header>
-              <RunActionForm
-                run={run}
-                user={user}
-                onDone={(updated) => {
-                  setRun(updated);
-                  onChanged?.();
-                }}
-              />
-            </section>
-          )}
-
-          {run.rejection_count > 0 && run.last_rejection_note && (
-            <Alert kind={run.awaiting_reupload ? "error" : "warn"}>
-              <span className="font-semibold">
-                {run.awaiting_reupload ? "Sent back — awaiting re-upload" : "Was sent back, since re-uploaded"}
-              </span>
-              {run.last_rejection_by && ` · ${run.last_rejection_by}`}
-              {run.last_rejection_role &&
-                ROLES[run.last_rejection_role]?.label !== run.last_rejection_by &&
-                ` (${ROLES[run.last_rejection_role]?.label})`}
-              : “{run.last_rejection_note}”
-            </Alert>
-          )}
-
           <section className="card p-5">
             <header className="mb-3 flex items-start gap-3">
               <div className="flex-1">
@@ -195,13 +217,13 @@ export default function RunHistory({ runNumber, user, onBack, onChanged, onSilen
                 <p className="text-sm text-slate-500 mt-0.5">
                   {allFiles.length === 0
                     ? "Nothing uploaded yet."
-                    : `${allFiles.length} file${allFiles.length > 1 ? "s" : ""} — click one to preview it.`}
+                    : `${allFiles.length} file${allFiles.length > 1 ? "s" : ""}. Click one to preview it.`}
                 </p>
               </div>
               <button
                 onClick={() => setLeftOpen(false)}
                 className="btn-ghost py-1.5 px-2.5 text-xs shrink-0"
-                title="Hide this panel — give the preview more room"
+                title="Hide this panel to give the preview more room"
               >
                 <Icon name="chevronLeft" size={14} />
               </button>
@@ -230,32 +252,31 @@ export default function RunHistory({ runNumber, user, onBack, onChanged, onSilen
         )}
 
         <div className="min-w-0 flex flex-col gap-4 lg:h-full lg:overflow-hidden">
-          {(!leftOpen || !rightOpen) && (
-            <div className="hidden lg:flex items-center gap-2 shrink-0">
-              {!leftOpen && (
-                <button
-                  onClick={() => setLeftOpen(true)}
-                  className="btn-ghost py-1.5 px-3 text-xs"
-                  title="Show files & action"
-                >
-                  <Icon name="chevronRight" size={14} />
-                  Show files
-                </button>
-              )}
-              {!rightOpen && (
-                <button
-                  onClick={() => setRightOpen(true)}
-                  className="ml-auto btn-ghost py-1.5 px-3 text-xs"
-                  title="Show status history"
-                >
-                  Show status
-                  <Icon name="chevronLeft" size={14} />
-                </button>
-              )}
-            </div>
-          )}
-          <div className="shrink-0">
+          {/* One slim row: the show-files/show-status toggles (only when their
+              column is collapsed) share it with the sample counts, instead of
+              each taking a whole row of their own above the actual data. */}
+          <div className="shrink-0 flex items-center gap-3">
+            {!leftOpen && (
+              <button
+                onClick={() => setLeftOpen(true)}
+                className="hidden lg:flex btn-ghost py-1 px-2.5 text-xs shrink-0"
+                title="Show files & action"
+              >
+                <Icon name="chevronRight" size={13} />
+                Files
+              </button>
+            )}
             <RunStatCards stats={sheetStats} />
+            {!rightOpen && (
+              <button
+                onClick={() => setRightOpen(true)}
+                className="hidden lg:flex btn-ghost py-1 px-2.5 text-xs shrink-0 ml-auto"
+                title="Show status history"
+              >
+                Status
+                <Icon name="chevronLeft" size={13} />
+              </button>
+            )}
           </div>
           <div className="min-h-[24rem] lg:flex-1 lg:min-h-0">
             <FilePreview source={preview} role={user.role} onClear={() => setPreview(null)} />
@@ -270,7 +291,7 @@ export default function RunHistory({ runNumber, user, onBack, onChanged, onSilen
               <button
                 onClick={() => setRightOpen(false)}
                 className="btn-ghost py-1.5 px-2.5 text-xs shrink-0"
-                title="Hide this panel — give the preview more room"
+                title="Hide this panel to give the preview more room"
               >
                 <Icon name="chevronRight" size={14} />
               </button>
@@ -286,7 +307,7 @@ export default function RunHistory({ runNumber, user, onBack, onChanged, onSilen
                     {i !== stages.length - 1 && (
                       <span
                         className={`absolute left-[15px] top-8 bottom-0 w-0.5 ${
-                          done ? "bg-emerald-500" : "bg-slate-200"
+                          done ? "bg-brand-500" : "bg-slate-200"
                         }`}
                       />
                     )}
@@ -294,7 +315,7 @@ export default function RunHistory({ runNumber, user, onBack, onChanged, onSilen
                       className={`absolute left-0 top-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold
                         ${
                           done
-                            ? "bg-emerald-100 text-emerald-700"
+                            ? "bg-brand-100 text-brand-700"
                             : current
                             ? "bg-brand-100 text-brand-800 ring-2 ring-brand-600"
                             : "bg-slate-100 text-slate-400"
@@ -313,7 +334,7 @@ export default function RunHistory({ runNumber, user, onBack, onChanged, onSilen
                       >
                         {stage.title}
                       </span>
-                      {current && <span className="chip bg-amber-100 text-amber-800">Current</span>}
+                      {current && <span className="chip bg-accent-100 text-accent-800">Current</span>}
                     </div>
                     <p className="text-xs text-slate-500 mt-1">{stage.desc}</p>
 
@@ -322,7 +343,7 @@ export default function RunHistory({ runNumber, user, onBack, onChanged, onSilen
                         key={entry.id}
                         className={`mt-2.5 rounded-lg border px-3.5 py-3 ${
                           entry.action === "rejected" || entry.action === "reset"
-                            ? "bg-red-50 border-red-200"
+                            ? "bg-accent-200 border-accent-400"
                             : "bg-slate-50 border-slate-200"
                         }`}
                       >
@@ -331,9 +352,9 @@ export default function RunHistory({ runNumber, user, onBack, onChanged, onSilen
                           <span
                             className={`font-bold ${
                               entry.action === "rejected" || entry.action === "reset"
-                                ? "text-red-700"
+                                ? "text-accent-900"
                                 : entry.action === "approved"
-                                ? "text-emerald-700"
+                                ? "text-brand-700"
                                 : "text-slate-500"
                             }`}
                           >
@@ -342,14 +363,16 @@ export default function RunHistory({ runNumber, user, onBack, onChanged, onSilen
                               : entry.action === "rejected"
                               ? "requested changes"
                               : entry.action === "reset"
-                              ? "removed the file — reset for re-upload"
+                              ? "removed the file, reset for re-upload"
                               : entry.note?.includes("has been reuploaded after requested changes")
                               ? "reuploaded"
                               : stage.logVerb || "completed"}
                           </span>
                           <span className="text-slate-400 ml-auto">{formatDateTime(entry.created_at)}</span>
                         </div>
-                        {entry.note && <p className="text-sm text-slate-700 mt-1.5">“{entry.note}”</p>}
+                        {entry.note && entry.action !== "reset" && (
+                          <p className="text-sm text-slate-700 mt-1.5">“{entry.note}”</p>
+                        )}
                         {entry.attachments?.length > 0 && (
                           <div className="mt-2 space-y-1.5">
                             {entry.attachments.map((a) => (
@@ -395,28 +418,26 @@ function RunStatCards({ stats }) {
       id: "qc_failed",
       label: "QC failed",
       value: stats === undefined ? "…" : stats === null ? "—" : stats.qcFailed,
-      tone: stats?.qcFailed > 0 ? "text-red-700" : "text-slate-400",
+      tone: stats?.qcFailed > 0 ? "text-accent-900" : "text-slate-400",
       icon: "x",
     },
     {
       id: "resequenced",
       label: "Re-sequenced",
       value: stats === undefined ? "…" : stats === null ? "—" : stats.resequenced,
-      tone: stats?.resequenced > 0 ? "text-amber-700" : "text-slate-400",
+      tone: stats?.resequenced > 0 ? "text-accent-700" : "text-slate-400",
       icon: "refresh",
     },
   ];
 
   return (
-    <div className="grid grid-cols-3 gap-3">
+    <div className="flex-1 min-w-0 flex items-center gap-4 flex-wrap">
       {tiles.map((t) => (
-        <div key={t.id} className="card p-4">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wide text-slate-500">{t.label}</span>
-            <Icon name={t.icon} size={14} className="text-slate-300" />
-          </div>
-          <div className={`text-3xl font-extrabold mt-1.5 ${t.tone}`}>{t.value}</div>
-        </div>
+        <span key={t.id} className="flex items-center gap-1.5 whitespace-nowrap">
+          <Icon name={t.icon} size={14} className="text-slate-300 shrink-0" />
+          <span className={`text-xl font-extrabold ${t.tone}`}>{t.value}</span>
+          <span className="text-xs font-semibold text-slate-500">{t.label}</span>
+        </span>
       ))}
     </div>
   );

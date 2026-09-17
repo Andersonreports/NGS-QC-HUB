@@ -25,15 +25,15 @@ function describeSelection(sel) {
 
 const ROLE_ANNOTATION_STYLE = {
   primary_team: {
-    marker: "text-sky-600",
-    badge: "bg-sky-100 text-sky-800",
-    card: "bg-sky-50 border-sky-200",
+    marker: "text-brand-600",
+    badge: "bg-brand-100 text-brand-800",
+    card: "bg-brand-50 border-brand-200",
     label: "Primary Team",
   },
   primary_head: {
-    marker: "text-red-700",
-    badge: "bg-red-100 text-red-800",
-    card: "bg-red-50 border-red-200",
+    marker: "text-accent-900",
+    badge: "bg-accent-300 text-accent-900",
+    card: "bg-accent-200 border-accent-400",
     label: "Primary Team Head",
   },
 };
@@ -110,7 +110,7 @@ export default function SheetGrid({ runNumber, role, fileMeta, onDownload, onCle
   // header — folded in here so the sheet's controls (freeze, notes, export…) share
   // that same row instead of needing a second toolbar strip below it.
   const header = (
-    <header className="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center gap-2.5 shrink-0">
+    <header className="px-4 py-2 border-b border-slate-200 flex flex-wrap items-center gap-2.5 shrink-0">
       <Icon name="file" size={15} className="text-slate-400 shrink-0" />
       <div className="min-w-0 flex-1">
         <div className="text-sm font-bold truncate" title={fileMeta?.name}>{fileMeta?.name}</div>
@@ -229,7 +229,7 @@ export default function SheetGrid({ runNumber, role, fileMeta, onDownload, onCle
       {header}
 
       {hasOtherTabs && (
-        <div className="px-4 py-2 border-b border-slate-200 flex flex-wrap items-center gap-2 shrink-0 bg-white">
+        <div className="px-4 py-1.5 border-b border-slate-200 flex flex-wrap items-center gap-2 shrink-0 bg-white">
           <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">
             Sheet tab:
           </span>
@@ -260,9 +260,6 @@ export default function SheetGrid({ runNumber, role, fileMeta, onDownload, onCle
               </button>
             );
           })}
-          <span className="text-[11px] text-slate-400">
-            The wrong tab picked by default? Any tab can be used instead.
-          </span>
         </div>
       )}
 
@@ -433,7 +430,7 @@ function Grid({ sheet, selection, onSelect, pinnedRowIndex, freezeCols, onFreeze
           <th
             style={topOnlyStickyStyle(0)}
             className={`border border-slate-200 px-2 py-1.5 text-left font-bold whitespace-nowrap ${
-              canEditQC ? "bg-emerald-50 text-emerald-900" : "bg-slate-50 text-slate-500"
+              canEditQC ? "bg-brand-50 text-brand-900" : "bg-slate-50 text-slate-500"
             }`}
           >
             QC Pass
@@ -441,7 +438,7 @@ function Grid({ sheet, selection, onSelect, pinnedRowIndex, freezeCols, onFreeze
           <th
             style={topOnlyStickyStyle(0)}
             className={`border border-slate-200 px-2 py-1.5 text-left font-bold whitespace-nowrap ${
-              canEditQC ? "bg-amber-50 text-amber-900" : "bg-slate-50 text-slate-500"
+              canEditQC ? "bg-accent-50 text-accent-900" : "bg-slate-50 text-slate-500"
             }`}
           >
             Re-Sequencing
@@ -459,7 +456,7 @@ function Grid({ sheet, selection, onSelect, pinnedRowIndex, freezeCols, onFreeze
     const rowFlagged = rowAnns.some((a) => a.kind === "flag");
     const rowNoted = rowAnns.length > 0 && !rowFlagged;
     const rowActive = selection?.scope === "row" && selection.row_index === row.row_index;
-    const rowBg = rowFlagged ? "bg-red-50/70" : rowNoted ? "bg-amber-50/50" : "";
+    const rowBg = rowFlagged ? "bg-accent-200/70" : rowNoted ? "bg-accent-50/50" : "";
 
     return (
       <tr
@@ -473,7 +470,7 @@ function Grid({ sheet, selection, onSelect, pinnedRowIndex, freezeCols, onFreeze
           className={`w-10 border border-slate-200 px-2 py-1 text-right tabular-nums cursor-pointer select-none ${
             rowActive ? "bg-brand-100 text-brand-900 font-bold" : "bg-slate-100 text-slate-400 hover:bg-slate-200"
           }`}
-          title={pinned ? "Pinned row — click to view or add a note" : "Click to view or add a note for this row"}
+          title={pinned ? "Pinned row. Click to view or add a note" : "Click to view or add a note for this row"}
         >
           <span className="inline-flex items-center gap-1">
             {pinned && <Icon name="pin" size={10} className="text-brand-700 shrink-0" />}
@@ -507,7 +504,7 @@ function Grid({ sheet, selection, onSelect, pinnedRowIndex, freezeCols, onFreeze
 
         <td
           style={topOnlyStickyStyle(rowBand)}
-          className={`border border-slate-200 px-2 py-1 ${rowFrozen(rowBand) ? "bg-white" : ""} ${canEditQC ? "bg-emerald-50/40" : ""}`}
+          className={`border border-slate-200 px-2 py-1 ${rowFrozen(rowBand) ? "bg-white" : ""} ${canEditQC ? "bg-brand-50/40" : ""}`}
         >
           <QCBadgeOrSelect
             value={row.qc_pass}
@@ -519,7 +516,7 @@ function Grid({ sheet, selection, onSelect, pinnedRowIndex, freezeCols, onFreeze
         </td>
         <td
           style={topOnlyStickyStyle(rowBand)}
-          className={`border border-slate-200 px-2 py-1 ${rowFrozen(rowBand) ? "bg-white" : ""} ${canEditQC ? "bg-amber-50/40" : ""}`}
+          className={`border border-slate-200 px-2 py-1 ${rowFrozen(rowBand) ? "bg-white" : ""} ${canEditQC ? "bg-accent-50/40" : ""}`}
         >
           <QCBadgeOrSelect
             value={row.resequencing}
@@ -575,9 +572,9 @@ function AnnotationMarkers({ annotations }) {
 
 function QCBadgeOrSelect({ value, options, editable, tone, onChange }) {
   const tones = {
-    green: "bg-emerald-100 text-emerald-800",
-    red: "bg-red-100 text-red-800",
-    amber: "bg-amber-100 text-amber-800",
+    green: "bg-brand-100 text-brand-800",
+    red: "bg-accent-300 text-accent-900",
+    amber: "bg-accent-100 text-accent-800",
     slate: "bg-slate-100 text-slate-600",
   };
   if (!editable) {
@@ -771,7 +768,7 @@ function NotesAndFlagsList({ sheet, onJump, onSheetUpdated, onError }) {
                   role="button"
                   onClick={(e) => handleDelete(e, a.id)}
                   title={`Remove this ${a.kind}`}
-                  className="shrink-0 text-slate-400 hover:text-red-700"
+                  className="shrink-0 text-slate-400 hover:text-accent-900"
                 >
                   {deletingId === a.id ? <Spinner /> : <Icon name="x" size={14} />}
                 </span>

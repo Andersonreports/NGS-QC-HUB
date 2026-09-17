@@ -42,7 +42,7 @@ async function request(path, { method = "GET", json, form, auth = true } = {}) {
   if (res.status === 401 && auth) {
     clearSession();
     window.location.reload();
-    throw new Error("Session expired — please sign in again.");
+    throw new Error("Session expired. Please sign in again.");
   }
 
   if (!res.ok) {
@@ -71,6 +71,7 @@ export const api = {
   listRuns: () => request("/api/runs"),
   getRun: (runNumber) => request(`/api/runs/${encodeURIComponent(runNumber)}`),
   createRun: (run_number) => request("/api/runs", { method: "POST", json: { run_number } }),
+  deleteRun: (runNumber) => request(`/api/runs/${encodeURIComponent(runNumber)}`, { method: "DELETE" }),
   advanceRun: (runNumber, { note, action, files } = {}) => {
     const form = new FormData();
     if (note) form.append("note", note);
@@ -104,6 +105,8 @@ export const api = {
   sheetExportUrl: (runNumber) => `${BASE}/api/runs/${encodeURIComponent(runNumber)}/sheet/export.xlsx`,
 
   getMonthlyReport: (year, month) => request(`/api/reports/monthly?year=${year}&month=${month}`),
+  editMonthlyReportCell: (runNumber, field, value) =>
+    request(`/api/reports/monthly/${encodeURIComponent(runNumber)}/cell`, { method: "PATCH", json: { field, value } }),
   monthlyReportExportUrl: (year, month) => `${BASE}/api/reports/monthly/export.xlsx?year=${year}&month=${month}`,
 
   listUsers: () => request("/api/admin/users"),

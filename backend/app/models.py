@@ -51,7 +51,7 @@ class HistoryEntry(Base):
     id = Column(String, primary_key=True, default=_uuid)
     run_id = Column(String, ForeignKey("runs.id"), nullable=False)
     stage_id = Column(String, nullable=False)
-    action = Column(String, nullable=False)  # completed | approved | rejected
+    action = Column(String, nullable=False)  # completed | approved | rejected | reset
     note = Column(Text, nullable=True)
     actor_user_id = Column(String, ForeignKey("users.id"), nullable=True)
     actor_name = Column(String, nullable=False)
@@ -142,7 +142,32 @@ class Notification(Base):
     run_id = Column(String, ForeignKey("runs.id"), nullable=False)
     role = Column(String, nullable=False)
     text = Column(String, nullable=False)
+    kind = Column(String, nullable=False, default="update")  # update | new_transfer
     read = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), default=now_utc)
+
+    run = relationship("Run")
+
+
+class MonthlyReportOverride(Base):
+    """Primary Team Head can correct a run's monthly-report row by hand — the
+    consolidated Excel's own "summary" tab is the default source, but it's not
+    always right (a typo, a field nobody filled in), so an edited field here wins
+    over what's read from the file. One row per run; only the fields someone has
+    actually edited are set."""
+    __tablename__ = "monthly_report_overrides"
+
+    id = Column(String, primary_key=True, default=_uuid)
+    run_id = Column(String, ForeignKey("runs.id"), unique=True, nullable=False)
+    test = Column(String, nullable=True)
+    number_of_samples = Column(String, nullable=True)
+    rawdata_backup_size = Column(String, nullable=True)
+    rawdata_backup_drive = Column(String, nullable=True)
+    shared_to_exome_group = Column(String, nullable=True)
+    itdose = Column(String, nullable=True)
+    output_backup_drive = Column(String, nullable=True)
+    coverage = Column(String, nullable=True)
+    done_by = Column(String, nullable=True)
+    updated_at = Column(DateTime(timezone=True), default=now_utc, onupdate=now_utc)
 
     run = relationship("Run")

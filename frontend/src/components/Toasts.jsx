@@ -7,27 +7,39 @@ export default function Toasts({ toasts, onDismiss, onOpen }) {
     <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-2.5 w-[min(26rem,calc(100vw-2.5rem))]">
       {toasts.map((t) => {
         const accent =
-          t.kind === "error"
+          t.kind === "qc_fail"
             ? "border-l-red-600"
-            : t.kind === "success"
-            ? "border-l-emerald-600"
+            : t.kind === "error"
+            ? "border-l-accent-800"
+            : t.kind === "notification"
+            ? "border-l-accent-600"
             : "border-l-brand-600";
         const iconColor =
-          t.kind === "error" ? "text-red-600" : t.kind === "success" ? "text-emerald-600" : "text-brand-600";
+          t.kind === "qc_fail"
+            ? "text-red-600"
+            : t.kind === "error" || t.kind === "notification"
+            ? "text-accent-700"
+            : "text-brand-600";
         return (
           <div
             key={t.id}
-            className={`toast-in card border-l-4 ${accent} shadow-lg px-4 py-3 flex items-start gap-3`}
+            className={`toast-in card border-l-4 ${accent} shadow-lg px-4 py-3 flex items-start gap-3 ${
+              t.kind === "qc_fail" ? "bg-red-50" : ""
+            }`}
           >
             <Icon
-              name={t.kind === "error" ? "x" : t.kind === "success" ? "check" : "bell"}
+              name={t.kind === "error" || t.kind === "qc_fail" ? "x" : t.kind === "success" ? "check" : "bell"}
               size={17}
               className={`mt-0.5 shrink-0 ${iconColor}`}
               strokeWidth={2.2}
             />
             <div className="flex-1 min-w-0">
-              {t.title && <div className="text-sm font-bold">{t.title}</div>}
-              <div className="text-sm text-slate-700 break-words">{t.text}</div>
+              {t.title && (
+                <div className={`text-sm font-bold ${t.kind === "qc_fail" ? "text-red-700" : ""}`}>{t.title}</div>
+              )}
+              <div className={`text-sm break-words ${t.kind === "qc_fail" ? "text-red-700 font-semibold" : "text-slate-700"}`}>
+                {t.text}
+              </div>
               {t.runNumber && onOpen && (
                 <button
                   onClick={() => {

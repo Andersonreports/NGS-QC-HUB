@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { ROLES } from "../workflow";
-import { Alert, Icon, RoleChip, Spinner } from "./ui";
+import { Alert, Icon, Spinner } from "./ui";
 
-const ASSIGNABLE_ROLES = ["wetlab", "primary_team", "primary_head", "bioinfo_head", "admin"];
+const ASSIGNABLE_ROLES = ["wetlab", "primary_team", "primary_head", "bioinfo_head"];
 
 export default function AdminUsers() {
   const [users, setUsers] = useState(null);
@@ -52,7 +52,7 @@ export default function AdminUsers() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-w-3xl mx-auto">
       <section className="card p-5">
         <header className="mb-4">
           <h2 className="text-base font-bold">Add a team member</h2>
@@ -133,7 +133,7 @@ export default function AdminUsers() {
 
       <section className="card overflow-hidden">
         <header className="p-5 border-b border-slate-200">
-          <h2 className="text-base font-bold">Accounts</h2>
+          <h2 className="text-base font-bold">User Management</h2>
         </header>
         {!users ? (
           <div className="p-8 flex justify-center text-brand-700">
@@ -156,11 +156,13 @@ export default function AdminUsers() {
                     <td className="px-5 py-3 font-mono font-semibold">{u.username}</td>
                     <td className="px-5 py-3">{u.full_name}</td>
                     <td className="px-5 py-3">
-                      <RoleChip role={u.role} />
+                      <span className="text-sm font-semibold uppercase tracking-wide text-slate-600">
+                        {ROLES[u.role]?.label}
+                      </span>
                     </td>
                     <td className="px-5 py-3 text-right">
                       <button
-                        className="text-xs font-bold text-slate-500 hover:text-red-700"
+                        className="text-xs font-bold text-slate-500 hover:text-accent-900"
                         onClick={() => toggleActive(u)}
                       >
                         {u.is_active === false ? "Reactivate" : "Deactivate"}

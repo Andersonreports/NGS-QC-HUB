@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import { STAGE_BY_ID, isAwaiting, wasSentBack } from "../workflow";
 import RunActionForm from "./RunActionForm";
-import { Alert, Icon, Spinner, StatusChip, daysSince, formatDateTime, timeAgo } from "./ui";
+import { Alert, Icon, Spinner, daysSince, formatDateTime, timeAgo } from "./ui";
 
 const REMINDER_AFTER_DAYS = 5;
 
@@ -60,53 +60,62 @@ export default function PendingRuns({ runs, user, onChanged, onViewRun, title })
             <li
               key={run.id}
               className={`py-3.5 first:pt-4 last:pb-4 ${
-                rejected ? "-mx-2 px-2 rounded-lg bg-red-50/70 border border-red-200 my-2" : ""
+                rejected ? "-mx-2 px-2 rounded-lg bg-accent-200/70 border border-accent-400 my-2" : ""
               }`}
             >
-              <div className="flex flex-wrap items-center gap-3">
+              {/* A single non-wrapping row, always — the stage title truncates
+                  first if space is tight, so the button stays beside it in the
+                  same spot on every row instead of sometimes wrapping below
+                  depending on how long that row's label happened to be. Kept
+                  short for the same reason: "Upload" fits beside consistently
+                  where a full "Upload & send for approval" wouldn't. */}
+              <div className="flex items-center gap-2.5">
                 <button
                   onClick={() => onViewRun(run.run_number)}
-                  className="font-mono font-bold text-sm hover:text-brand-800 hover:underline"
+                  className="font-mono font-bold text-sm hover:text-brand-800 hover:underline shrink-0"
                 >
                   {run.run_number}
                 </button>
-                {fresh && <span className="chip bg-red-100 text-red-800">New transfer</span>}
                 {overdue && (
-                  <span className="chip bg-red-600 text-white">
+                  <span className="chip bg-accent-800 text-white shrink-0">
                     <Icon name="clock" size={11} strokeWidth={2.4} />
-                    {age}d since transfer
+                    {age}d
                   </span>
                 )}
-                {rejected && <span className="chip bg-red-600 text-white">Changes requested</span>}
-                {wasSentBack(run) && <StatusChip run={run} />}
-                <span className="text-sm font-semibold text-slate-700 flex-1 min-w-[11rem]">
+                {rejected && <span className="chip bg-accent-800 text-white shrink-0">Changes requested</span>}
+                <span className="text-sm font-semibold text-slate-700 truncate min-w-0 flex-1">
                   {stage.title}
                 </span>
-                <span className="text-xs text-slate-400">{timeAgo(run.updated_at)}</span>
+                <span className="text-xs text-slate-400 shrink-0 hidden sm:inline">{timeAgo(run.updated_at)}</span>
                 <button
-                  className={
+                  className={`shrink-0 ${
                     isOpen
                       ? "btn-ghost py-1.5 px-3 text-xs"
                       : overdue
                       ? "btn-danger py-1.5 px-3 text-xs"
                       : "btn-primary py-1.5 px-3 text-xs"
+                  }`}
+                  onClick={() =>
+                    // A review needs the full preview to actually check the data
+                    // against — that only fits on the run's own page, not squeezed
+                    // into this list, so it opens there instead of expanding here.
+                    stage.review ? onViewRun(run.run_number) : setOpenRun(isOpen ? null : run.run_number)
                   }
-                  onClick={() => setOpenRun(isOpen ? null : run.run_number)}
                 >
-                  {isOpen ? "Close" : stage.review ? "Review" : "Take action"}
+                  {isOpen ? "Close" : stage.review ? "Review" : rejected ? "Re-upload" : "Upload"}
                 </button>
               </div>
 
               {fresh && !isOpen && (
-                <p className="text-xs text-brand-700 font-medium mt-1.5 flex items-center gap-1.5">
-                  <Icon name="upload" size={12} />
-                  Raw data was transferred — upload the raw CSV &amp; Excel to get started.
+                <p className="text-xs text-slate-500 font-medium mt-1.5 flex items-center gap-1.5">
+                  <Icon name="upload" size={12} className="text-slate-400" />
+                  New transfer. Upload the raw CSV &amp; Excel to get started.
                 </p>
               )}
               {overdue && !isOpen && (
-                <p className="text-xs text-red-700 font-medium mt-1.5 flex items-center gap-1.5">
+                <p className="text-xs text-accent-900 font-medium mt-1.5 flex items-center gap-1.5">
                   <Icon name="clock" size={12} />
-                  {age} days have passed since the raw data was transferred — the consolidated Excel is still outstanding.
+                  {age} days have passed since the raw data was transferred, and the consolidated Excel is still outstanding.
                 </p>
               )}
               {rejected && (
@@ -153,25 +162,25 @@ function ReviewerFeedback({ run }) {
   }, [run.run_number, run.updated_at]);
 
   return (
-    <div className="mt-3 rounded-lg border border-red-200 bg-white/80 px-3 py-2.5 text-xs">
-      <div className="font-bold text-red-800 flex items-center gap-1.5">
-        <Icon name="x" size={13} strokeWidth={2.5} /> Reviewer feedback — correct before re-uploading
+    <div className="mt-3 rounded-lg border border-accent-400 bg-white/80 px-3 py-2.5 text-xs">
+      <div className="font-bold text-accent-900 flex items-center gap-1.5">
+        <Icon name="x" size={13} strokeWidth={2.5} /> Reviewer feedback: correct before re-uploading
       </div>
       {run.last_rejection_note && (
-        <p className="mt-1.5 text-red-900">
+        <p className="mt-1.5 text-accent-900">
           <span className="font-semibold">{run.last_rejection_by || "Reviewer"}:</span> “{run.last_rejection_note}”
         </p>
       )}
       {annotations === null ? (
         <div className="mt-2 text-slate-400 flex items-center gap-1"><Spinner /> Loading sheet flags…</div>
       ) : annotations.length > 0 ? (
-        <ul className="mt-2 space-y-1.5 border-t border-red-100 pt-2">
+        <ul className="mt-2 space-y-1.5 border-t border-accent-300 pt-2">
           {annotations.map((annotation) => (
-            <li key={annotation.id} className="flex items-start gap-1.5 text-red-900">
-              <span className="font-bold text-red-700 leading-4">⚑</span>
+            <li key={annotation.id} className="flex items-start gap-1.5 text-accent-900">
+              <span className="font-bold text-accent-900 leading-4">⚑</span>
               <span>
                 <span className="font-semibold">{annotationLocation(annotation)}:</span> {annotation.text}
-                <span className="text-red-700/70"> · {annotation.author_name} · <span className="font-bold text-black">{formatDateTime(annotation.created_at)}</span></span>
+                <span className="text-accent-900/70"> · {annotation.author_name} · <span className="font-bold text-black">{formatDateTime(annotation.created_at)}</span></span>
               </span>
             </li>
           ))}
@@ -220,7 +229,7 @@ function InlineAction({ runNumber, user, onDone }) {
           <span className="font-semibold">Sent back by {sentBackNote.actor_name}:</span> “{sentBackNote.note}”
         </Alert>
       )}
-      <RunActionForm run={run} user={user} onDone={onDone} />
+      <RunActionForm run={run} user={user} onDone={onDone} inlinePreview />
     </div>
   );
 }

@@ -45,15 +45,26 @@ def _runs_for_month(db: Session, year: int, month: int):
     )
 
 
-def _read_summary_row(db: Session, run: models.Run) -> dict:
-    """The consolidated Excel's own "summary" tab, as a {header: value} dict — every
-    field for this run except Sno and Data_received, which come from our own records.
-    Empty dict if there's no consolidated Excel yet, or it has no such tab."""
+def _current_attachment(db: Session, run: models.Run) -> models.Attachment | None:
+    """The run's current consolidated-Excel attachment, or None if there isn't
+    one right now — either never uploaded, or removed and not yet replaced.
+    Whether this is set (not whether a "summary" tab happens to be in it) is
+    what decides whether the run appears in the monthly report at all — its
+    rows are meant to match the files actually on the run's dashboard."""
     sheet = db.query(models.Sheet).filter(models.Sheet.run_id == run.id).first()
     if not sheet or not sheet.source_attachment_id:
-        return {}
+        return None
     attachment = db.query(models.Attachment).filter(models.Attachment.id == sheet.source_attachment_id).first()
     if not attachment or not Path(attachment.stored_path).exists():
+        return None
+    return attachment
+
+
+def _read_summary_row(attachment: models.Attachment | None) -> dict:
+    """The consolidated Excel's own "summary" tab, as a {header: value} dict — every
+    field for this run except Sno and Data_received, which come from our own records.
+    Empty dict if there's no consolidated Excel right now, or it has no such tab."""
+    if not attachment:
         return {}
     try:
         wb = openpyxl.load_workbook(attachment.stored_path, data_only=True, read_only=True)
@@ -101,22 +112,59 @@ def _format_size_gb(total_gb: float) -> str:
     return f"{total_gb:.1f} GB"
 
 
-def _row_for_run(db: Session, run: models.Run) -> dict:
-    summary = _read_summary_row(db, run)
+# Fields Primary Team Head can correct by hand — everything read from the summary
+# tab except identity/derived fields (Sno is a position, Run and Data_received are
+# tied to the run record itself, not something to override per month).
+EDITABLE_FIELDS = {
+    "test", "number_of_samples", "rawdata_backup_size", "rawdata_backup_drive",
+    "shared_to_exome_group", "itdose", "output_backup_drive", "coverage", "done_by",
+}
+
+
+def _get_override(db: Session, run_id: str) -> models.MonthlyReportOverride | None:
+    return db.query(models.MonthlyReportOverride).filter(models.MonthlyReportOverride.run_id == run_id).first()
+
+
+def _override_has_content(override: models.MonthlyReportOverride | None) -> bool:
+    return bool(override) and any(getattr(override, f) not in (None, "") for f in EDITABLE_FIELDS)
+
+
+def _row_for_run(db: Session, run: models.Run, override: models.MonthlyReportOverride | None = None) -> dict:
+    attachment = _current_attachment(db, run)
+    summary = _read_summary_row(attachment)
+
+    def field(name: str, summary_key: str):
+        edited = getattr(override, name, None) if override else None
+        if edited not in (None, ""):
+            return edited
+        return _cell_str(summary.get(summary_key))
+
+    number_of_samples = getattr(override, "number_of_samples", None) if override else None
+    if number_of_samples not in (None, ""):
+        try:
+            number_of_samples = float(number_of_samples)
+        except ValueError:
+            number_of_samples = None
+    else:
+        number_of_samples = summary.get("Number of samples")
+
     return {
         "run_number": run.run_number,
         "run_label": _cell_str(summary.get("Run")) or run.run_number,
-        "test": _cell_str(summary.get("Test")),
-        "number_of_samples": summary.get("Number of samples"),
-        "rawdata_backup_size": _cell_str(summary.get("Rawdata backup (Consolidated ) size")),
-        "rawdata_backup_drive": _cell_str(summary.get("Radata Backup drive")),
+        "test": field("test", "Test"),
+        "number_of_samples": number_of_samples,
+        "rawdata_backup_size": field("rawdata_backup_size", "Rawdata backup (Consolidated ) size"),
+        "rawdata_backup_drive": field("rawdata_backup_drive", "Radata Backup drive"),
         "data_received": run.created_at,
-        "shared_to_exome_group": _cell_str(summary.get("shared to exome group")),
-        "itdose": _cell_str(summary.get("itdose")),
-        "output_backup_drive": _cell_str(summary.get("Output Backup drive")),
-        "coverage": _cell_str(summary.get("Coverage")),
-        "done_by": _cell_str(summary.get("Done by")),
-        "has_summary": bool(summary),
+        "shared_to_exome_group": field("shared_to_exome_group", "shared to exome group"),
+        "itdose": field("itdose", "itdose"),
+        "output_backup_drive": field("output_backup_drive", "Output Backup drive"),
+        "coverage": field("coverage", "Coverage"),
+        "done_by": field("done_by", "Done by"),
+        "has_summary": bool(summary) or bool(override),
+        # Not part of the response schema — dropped on serialization. Decides
+        # whether this run even belongs in the report at all (see callers).
+        "has_file": attachment is not None,
     }
 
 
@@ -129,31 +177,76 @@ def _totals(rows: list[dict]) -> dict:
     }
 
 
+def _rows_for_month(db: Session, year: int, month: int) -> list[dict]:
+    """Rows for every run transferred that month that currently has a
+    consolidated Excel — a run whose file was removed and not yet re-uploaded
+    drops out until it is, and one Primary Team Head has corrected by hand
+    stays even without a file. This keeps the report matching what's actually
+    on each run's own dashboard, not a stale snapshot of a file that's gone."""
+    rows = []
+    for run in _runs_for_month(db, year, month):
+        override = _get_override(db, run.id)
+        row = _row_for_run(db, run, override)
+        if row["has_file"] or _override_has_content(override):
+            rows.append(row)
+    return rows
+
+
 @router.get("/monthly", response_model=schemas.MonthlyReportOut)
 def monthly_report(
     year: int, month: int,
     db: Session = Depends(get_db), _user: models.User = Depends(get_current_user),
 ):
-    """Every run transferred in the given month/year, each row read straight from
-    that run's consolidated Excel's "summary" tab — the preview behind the
-    "consolidate by month" picker."""
+    """Every run transferred in the given month/year that currently has a
+    consolidated Excel, each row read straight from its "summary" tab, with any
+    of Primary Team Head's own corrections applied on top — the preview behind
+    the "consolidate by month" picker."""
     _validate_month(year, month)
-    runs = _runs_for_month(db, year, month)
-    rows = [_row_for_run(db, r) for r in runs]
+    rows = _rows_for_month(db, year, month)
     return {"year": year, "month": month, "runs": rows, "totals": _totals(rows)}
+
+
+@router.patch("/monthly/{run_number}/cell", response_model=schemas.MonthlyReportRunOut)
+def edit_monthly_report_cell(
+    run_number: str, payload: schemas.MonthlyReportCellEdit,
+    db: Session = Depends(get_db), _user: models.User = Depends(require_role("primary_head")),
+):
+    """Correct one field of one run's monthly-report row by hand — Primary Team
+    Head only. Stored separately from the consolidated Excel itself; it just wins
+    over whatever the "summary" tab says for that field from here on."""
+    if payload.field not in EDITABLE_FIELDS:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"'{payload.field}' isn't editable here")
+    run = db.query(models.Run).filter(models.Run.run_number == run_number).first()
+    if not run:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Run not found")
+
+    value = payload.value.strip()
+    if payload.field == "number_of_samples" and value:
+        try:
+            float(value)
+        except ValueError:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Number of samples must be a number")
+
+    override = _get_override(db, run.id)
+    if not override:
+        override = models.MonthlyReportOverride(run_id=run.id)
+        db.add(override)
+    setattr(override, payload.field, value or None)
+    db.commit()
+    db.refresh(override)
+    return _row_for_run(db, run, override)
 
 
 @router.get("/monthly/export.xlsx")
 def monthly_report_export(
     year: int, month: int,
-    db: Session = Depends(get_db), _user: models.User = Depends(require_role("primary_team")),
+    db: Session = Depends(get_db), _user: models.User = Depends(require_role("primary_head")),
 ):
     """The same table as /monthly, laid out exactly like the reference format, as a
-    downloadable .xlsx — Primary Team only; everyone else can view the table but not
-    download it."""
+    downloadable .xlsx — Primary Team Head only; everyone else can view the table
+    but not download it."""
     _validate_month(year, month)
-    runs = _runs_for_month(db, year, month)
-    rows = [_row_for_run(db, r) for r in runs]
+    rows = _rows_for_month(db, year, month)
     totals = _totals(rows)
     month_label = datetime(year, month, 1).strftime("%B %Y")
 

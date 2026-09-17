@@ -3,11 +3,10 @@ from . import models
 from .security import hash_password
 
 DEFAULT_ACCOUNTS = [
-    {"username": "admin", "full_name": "Administrator", "role": "admin", "password": "admin@123"},
     {"username": "wetlab", "full_name": "Wet Lab Team", "role": "wetlab", "password": "wetlab@123"},
-    {"username": "primary", "full_name": "Sethu", "role": "primary_team", "password": "primary@123"},
-    {"username": "phead", "full_name": "Tamilarasu", "role": "primary_head", "password": "phead@123"},
-    {"username": "bhead", "full_name": "Dr. Muthukumaran", "role": "bioinfo_head", "password": "bhead@123"},
+    {"username": "sethu", "full_name": "Sethu", "role": "primary_team", "password": "sethu@123"},
+    {"username": "tamilarasu", "full_name": "Tamilarasu", "role": "primary_head", "password": "tamilarasu@123"},
+    {"username": "muthukumaran", "full_name": "Dr. Muthukumaran", "role": "bioinfo_head", "password": "muthukumaran@123"},
 ]
 
 

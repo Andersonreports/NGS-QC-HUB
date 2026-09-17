@@ -53,7 +53,7 @@ export default function FileRow({
             role="button"
             onClick={handleDelete}
             title="Remove this file"
-            className="text-slate-400 hover:text-red-700 shrink-0"
+            className="text-slate-400 hover:text-accent-900 shrink-0"
           >
             {deleting ? <Spinner /> : <Icon name="x" size={14} />}
           </span>

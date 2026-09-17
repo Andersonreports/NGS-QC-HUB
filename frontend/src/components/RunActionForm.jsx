@@ -1,17 +1,24 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../api";
 import { ROLES, STAGE_BY_ID, UPLOAD_SLOTS, UPLOAD_ANY_OF, isAwaiting } from "../workflow";
 import AttachmentList from "./AttachmentList";
+import FileRow from "./FileRow";
+import FilePreview from "./FilePreview";
 import { Alert, Icon, Spinner, formatBytes } from "./ui";
 
-/** Picks the right action for whatever step a run is sitting on. */
-export default function RunActionForm({ run, user, onDone }) {
+/** Picks the right action for whatever step a run is sitting on. `inlinePreview`
+ * lets the file(s) up for review be previewed right here — used from the compact
+ * "Action Required" list so reviewing doesn't require opening the full run page.
+ * `compact` is for the run page's own top action bar, where a full-size preview
+ * already sits right below — so the form skips repeating the file and trims down
+ * to just what's needed to act. */
+export default function RunActionForm({ run, user, onDone, inlinePreview = false, compact = false }) {
   const stage = STAGE_BY_ID[run.current_stage];
 
   if (run.status === "completed") {
     return (
       <Alert kind="success">
-        This run is fully approved — the final status has been delivered to the Primary Team.
+        This run is fully approved. The final status has been delivered to the Primary Team.
       </Alert>
     );
   }
@@ -27,7 +34,7 @@ export default function RunActionForm({ run, user, onDone }) {
   }
 
   return stage.review ? (
-    <ReviewForm run={run} stage={stage} onDone={onDone} />
+    <ReviewForm run={run} stage={stage} user={user} onDone={onDone} inlinePreview={inlinePreview} hideFiles={compact} compact={compact} />
   ) : (
     <UploadForm run={run} stage={stage} onDone={onDone} />
   );
@@ -141,13 +148,31 @@ export function FilePicker({ id, slot, file, onPick }) {
   );
 }
 
-export function ReviewForm({ run, stage, onDone, hideFiles = false }) {
+export function ReviewForm({ run, stage, user, onDone, hideFiles = false, inlinePreview = false, compact = false }) {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState(null);
+  const [preview, setPreview] = useState(null);
   const noteRequired = stage.role !== "primary_head";
 
   const latestWithFiles = [...(run.history || [])].reverse().find((h) => h.attachments?.length);
+
+  // Land straight on the file that needs reviewing — no click required — so
+  // approving/rejecting from the compact "Action Required" list doesn't force a
+  // trip to the full run page just to see what's in it.
+  useEffect(() => {
+    if (!inlinePreview || !latestWithFiles?.attachments?.length) return;
+    const first = latestWithFiles.attachments[0];
+    setPreview({
+      kind: "remote",
+      runNumber: run.run_number,
+      attachmentId: first.id,
+      filename: first.filename,
+      sizeBytes: first.size_bytes,
+      stageId: latestWithFiles.stage_id,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inlinePreview, latestWithFiles?.id]);
 
   async function act(action) {
     if (action === "rejected" && noteRequired && !note.trim()) {
@@ -167,6 +192,39 @@ export function ReviewForm({ run, stage, onDone, hideFiles = false }) {
     }
   }
 
+  if (compact) {
+    // Nothing but what's needed to act: the file it's about, a note (optional
+    // unless rejecting), Approve/Reject — no heading, no restated instructions.
+    // The actual preview already sits right below on this page.
+    return (
+      <div className="space-y-2">
+        {error && <Alert kind="error">{error}</Alert>}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {latestWithFiles?.attachments?.[0] && (
+            <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 min-w-0 shrink-0 max-w-[16rem]">
+              <Icon name="file" size={14} className="text-slate-400 shrink-0" />
+              <span className="truncate">{latestWithFiles.attachments[0].filename}</span>
+            </div>
+          )}
+          <input
+            className="field flex-1 min-w-[10rem] py-1.5 text-sm"
+            placeholder={noteRequired ? "Note (required to send back)" : "Note (optional)"}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
+          <button className="btn-success py-1.5 px-3 text-sm shrink-0" onClick={() => act("approved")} disabled={busy !== null}>
+            {busy === "approved" ? <Spinner /> : <Icon name="check" size={14} strokeWidth={2.4} />}
+            Approve
+          </button>
+          <button className="btn-danger py-1.5 px-3 text-sm shrink-0" onClick={() => act("rejected")} disabled={busy !== null}>
+            {busy === "rejected" ? <Spinner /> : <Icon name="x" size={14} strokeWidth={2.4} />}
+            Request changes
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <p className="text-sm text-slate-600">{stage.desc}</p>
@@ -177,13 +235,35 @@ export function ReviewForm({ run, stage, onDone, hideFiles = false }) {
           <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
             For your review
           </div>
-          <AttachmentList runNumber={run.run_number} attachments={latestWithFiles.attachments} />
+          {inlinePreview ? (
+            <div className="space-y-2">
+              {latestWithFiles.attachments.length > 1 && (
+                <div className="space-y-1.5">
+                  {latestWithFiles.attachments.map((file) => (
+                    <FileRow
+                      key={file.id}
+                      file={file}
+                      runNumber={run.run_number}
+                      stageId={latestWithFiles.stage_id}
+                      onPreview={setPreview}
+                      active={preview?.attachmentId === file.id}
+                    />
+                  ))}
+                </div>
+              )}
+              <div className="h-[26rem]">
+                <FilePreview source={preview} role={user?.role} onClear={null} />
+              </div>
+            </div>
+          ) : (
+            <AttachmentList runNumber={run.run_number} attachments={latestWithFiles.attachments} />
+          )}
         </div>
       )}
 
       <div>
         <label className="label" htmlFor={`review-${run.run_number}`}>
-          {noteRequired ? "Note (required to send back)" : "Note (optional — errors are flagged in the Excel)"}
+          {noteRequired ? "Note (required to send back)" : "Note (optional; errors are flagged in the Excel)"}
         </label>
         <textarea
           id={`review-${run.run_number}`}

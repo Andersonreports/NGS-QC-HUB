@@ -15,6 +15,13 @@ ADDITIVE_COLUMNS = {
         ("source_sheet_name", "TEXT"),
         ("source_attachment_id", "TEXT"),
     ],
+    "notifications": [
+        # DEFAULT here (unlike the columns above) because existing rows need a
+        # real value straight away — the frontend distinguishes "new transfer"
+        # notifications by this field, and a NULL would just silently fail to
+        # highlight every notification that existed before this column did.
+        ("kind", "TEXT DEFAULT 'update'"),
+    ],
 }
 
 

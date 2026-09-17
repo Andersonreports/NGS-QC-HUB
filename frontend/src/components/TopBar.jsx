@@ -79,7 +79,7 @@ export default function TopBar({ user, tabs, activeTab, onTab, notifications, on
                 >
                   <Icon name="bell" size={19} />
                   {unread > 0 && (
-                    <span className="absolute top-1.5 right-1.5 min-w-[1.05rem] h-[1.05rem] px-1 rounded-full bg-red-500 text-white text-[10px] font-extrabold flex items-center justify-center ring-2 ring-brand-900">
+                    <span className="absolute top-1.5 right-1.5 min-w-[1.05rem] h-[1.05rem] px-1 rounded-full bg-accent-700 text-white text-[10px] font-extrabold flex items-center justify-center ring-2 ring-brand-900">
                       {unread}
                     </span>
                   )}
@@ -110,10 +110,12 @@ export default function TopBar({ user, tabs, activeTab, onTab, notifications, on
                               onOpenRun(n);
                             }}
                             className={`w-full text-left px-4 py-3 border-b border-slate-100 hover:bg-slate-50 ${
-                              n.read ? "" : "bg-brand-50/60"
+                              n.kind === "qc_fail" ? "bg-red-50" : n.read ? "" : "bg-brand-50/60"
                             }`}
                           >
-                            <div className="text-sm text-slate-800">{n.text}</div>
+                            <div className={`text-sm ${n.kind === "qc_fail" ? "font-semibold text-red-700" : "text-slate-800"}`}>
+                              {n.text}
+                            </div>
                             <div className="text-[11px] text-slate-400 mt-0.5">{timeAgo(n.created_at)}</div>
                           </button>
                         ))
@@ -157,7 +159,7 @@ export default function TopBar({ user, tabs, activeTab, onTab, notifications, on
                 {t.badge > 0 && (
                   <span
                     className={`ml-2 inline-flex items-center justify-center min-w-[1.2rem] h-[1.2rem] text-[11px] font-extrabold rounded-full px-1 ${
-                      active ? "bg-accent-600 text-white" : "bg-red-600 text-white"
+                      active ? "bg-accent-600 text-white" : "bg-accent-800 text-white"
                     }`}
                   >
                     {t.badge}

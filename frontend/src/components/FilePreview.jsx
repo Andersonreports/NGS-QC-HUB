@@ -126,7 +126,7 @@ export default function FilePreview({ source, role, onClear }) {
           <div className="min-w-0 flex-1">
             <div className="text-sm font-bold truncate" title={meta.name}>{meta.name}</div>
             <div className="text-[11px] text-slate-400">
-              {source.kind === "local" ? "Selected — not uploaded yet" : `Uploaded · run ${source.runNumber}`}
+              {source.kind === "local" ? "Selected, not uploaded yet" : `Uploaded · run ${source.runNumber}`}
               {meta.size != null && ` · ${formatBytes(meta.size)}`}
             </div>
           </div>

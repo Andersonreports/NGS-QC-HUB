@@ -11,16 +11,16 @@ from ..workflow import ROLES
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
-ALL_ROLES = ROLES + ["admin"]
+ALL_ROLES = ROLES
 
 
 @router.get("/users", response_model=List[schemas.UserOut])
-def list_users(db: Session = Depends(get_db), _admin=Depends(require_role("admin"))):
+def list_users(db: Session = Depends(get_db), _admin=Depends(require_role("primary_head"))):
     return db.query(models.User).order_by(models.User.created_at).all()
 
 
 @router.post("/users", response_model=schemas.UserOut)
-def create_user(payload: schemas.CreateUserRequest, db: Session = Depends(get_db), _admin=Depends(require_role("admin"))):
+def create_user(payload: schemas.CreateUserRequest, db: Session = Depends(get_db), _admin=Depends(require_role("primary_head"))):
     if payload.role not in ALL_ROLES:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"role must be one of {ALL_ROLES}")
     username = payload.username.strip().lower()
@@ -39,7 +39,7 @@ def create_user(payload: schemas.CreateUserRequest, db: Session = Depends(get_db
 
 
 @router.post("/users/{user_id}/deactivate", response_model=schemas.UserOut)
-def deactivate_user(user_id: str, db: Session = Depends(get_db), _admin=Depends(require_role("admin"))):
+def deactivate_user(user_id: str, db: Session = Depends(get_db), _admin=Depends(require_role("primary_head"))):
     user = db.get(models.User, user_id)
     if not user:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
@@ -50,7 +50,7 @@ def deactivate_user(user_id: str, db: Session = Depends(get_db), _admin=Depends(
 
 
 @router.post("/users/{user_id}/activate", response_model=schemas.UserOut)
-def activate_user(user_id: str, db: Session = Depends(get_db), _admin=Depends(require_role("admin"))):
+def activate_user(user_id: str, db: Session = Depends(get_db), _admin=Depends(require_role("primary_head"))):
     user = db.get(models.User, user_id)
     if not user:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")

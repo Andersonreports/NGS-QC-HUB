@@ -16,7 +16,6 @@ export const ROLES = {
   primary_team: { id: "primary_team", label: "Primary Team", color: "#1668c1", soft: "#e7f1fd", onDark: "#8dc0f2" },
   primary_head: { id: "primary_head", label: "Primary Team Head", color: "#0b3462", soft: "#e2eaf4", onDark: "#adc8e6" },
   bioinfo_head: { id: "bioinfo_head", label: "Bioinfo Team Head", color: "#8a3a12", soft: "#f7ebe3", onDark: "#dfa77f" },
-  admin: { id: "admin", label: "Administrator", color: "#334155", soft: "#e2e8f0", onDark: "#cbd5e1" },
 };
 
 export const STAGES = [
@@ -46,7 +45,7 @@ export const STAGES = [
     title: "Raw CSV & Excel upload",
     logVerb: "uploaded the raw CSV & Excel",
     heading: "Upload raw CSV & Excel",
-    desc: "Check the raw data on the common drive, then upload whichever of the CSV and Excel you have here as backup — one of them is enough, both is fine too.",
+    desc: "Check the raw data on the common drive, then upload whichever of the CSV and Excel you have here as backup. One of them is enough, both is fine too.",
     action: "Upload raw backup",
     needsFiles: true,
   },
@@ -56,7 +55,7 @@ export const STAGES = [
     title: "Consolidated Excel upload",
     logVerb: "uploaded the consolidated Excel",
     heading: "Upload consolidated Excel",
-    desc: "Upload the consolidated Excel — raw data plus the essential details and analysis — to send it for approval.",
+    desc: "Upload the consolidated Excel (raw data plus the essential details and analysis) to send it for approval.",
     action: "Upload & send for approval",
     needsFiles: true,
   },
@@ -90,7 +89,7 @@ export const STAGES = [
     title: "Consolidated PDF upload",
     logVerb: "uploaded the consolidated PDF",
     heading: "Upload consolidated PDF",
-    desc: "Upload the consolidated PDF — all the details from the Excel in report format — for final review.",
+    desc: "Upload the consolidated PDF (all the details from the Excel in report format) for final review.",
     action: "Upload PDF",
     needsFiles: true,
   },
@@ -105,7 +104,7 @@ export const STAGES = [
   {
     id: "completed",
     role: null,
-    title: "Samples approved — moved to Tertiary team for analysis",
+    title: "Samples approved, moved to Tertiary team for analysis",
     desc: "Every approval is in; the samples are handed off to the Tertiary team for analysis. All timestamps and notes are recorded against the run.",
   },
 ];
@@ -140,7 +139,6 @@ const HIDDEN_STAGES = {
   primary_head: ["notified", "drive_checked"],
   bioinfo_head: ["notified", "drive_checked"],
   primary_team: [],
-  admin: [],
 };
 
 export function canSeeStage(stageId, role) {
@@ -172,32 +170,30 @@ export function isAwaiting(run, role) {
 
 export function wasSentBack(run) {
   const last = run.history?.[run.history.length - 1];
-  return last?.action === "rejected";
+  return last?.action === "rejected" || last?.action === "reset";
 }
 
 /**
  * One label for where a run stands, including whether a send-back has been
- * re-uploaded yet. Fields come from the runs endpoints.
+ * re-uploaded yet. Fields come from the runs endpoints. Blue reads as "moving
+ * normally" (whether that's still in progress or already done), and only the one
+ * state that actually needs a person to act — a send-back awaiting re-upload —
+ * gets orange, so that color keeps its meaning instead of covering every row.
  */
 export function runState(run) {
   if (run.status === "completed") {
-    return { key: "completed", label: "Completed", chip: "bg-emerald-100 text-emerald-800", dot: "bg-emerald-500" };
+    return { key: "completed", label: "Completed", chip: "bg-brand-100 text-brand-800" };
   }
   if (run.awaiting_reupload) {
     return {
       key: "needs_reupload",
-      label: "Sent back — needs re-upload",
-      chip: "bg-red-100 text-red-800",
-      dot: "bg-red-500",
+      label: "Needs re-upload",
+      chip: "bg-accent-100 text-accent-800",
+      urgent: true,
     };
   }
   if (run.rejection_count > 0) {
-    return {
-      key: "reuploaded",
-      label: "Re-uploaded — back in review",
-      chip: "bg-amber-100 text-amber-800",
-      dot: "bg-amber-500",
-    };
+    return { key: "reuploaded", label: "Back in review", chip: "bg-brand-50 text-brand-700" };
   }
-  return { key: "in_progress", label: "In progress", chip: "bg-brand-100 text-brand-800", dot: "bg-brand-500" };
+  return { key: "in_progress", label: "In progress", chip: "bg-brand-50 text-brand-700" };
 }
