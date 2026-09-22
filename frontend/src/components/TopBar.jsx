@@ -42,7 +42,7 @@ export default function TopBar({ user, tabs, activeTab, onTab, notifications, on
                 <Icon name="flask" size={22} />
               </div>
               <div className="text-left">
-                <div className="text-[1.35rem] font-extrabold tracking-tight leading-none">NGS QC Hub</div>
+                <div className="text-[1.35rem] font-extrabold tracking-tight leading-none">Germline Exome QC Hub</div>
                 <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-brand-200/70 mt-1.5">
                   Anderson Diagnostics
                 </div>

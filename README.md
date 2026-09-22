@@ -1,4 +1,4 @@
-# NGS QC Hub
+# Germline Exome QC Hub
 
 Internal workflow app for the Wet Lab ↔ Bioinformatics handoff: Wet Lab records a raw data
 transfer by run number, the Primary Team uploads the CSV/Excel, and the run moves through the

@@ -15,7 +15,7 @@ run_migrations(engine)
 seed_default_accounts()
 sync_seed_display_names()
 
-app = FastAPI(title="NGS QC Hub API")
+app = FastAPI(title="Germline Exome QC Hub API")
 
 app.add_middleware(
     CORSMiddleware,

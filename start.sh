@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Start NGS QC Hub for the LAN. Rebuilds the frontend only if it hasn't been built yet.
+# Start Germline Exome QC Hub for the LAN. Rebuilds the frontend only if it hasn't been built yet.
 set -euo pipefail
 cd "$(dirname "$0")"
 
-PORT="${PORT:-8000}"
+PORT="${PORT:-9000}"
 export PATH="$HOME/.local/bin:$PATH"
 
 if [ ! -d frontend/dist ]; then
@@ -13,7 +13,7 @@ fi
 
 LAN_IP="$(hostname -I | awk '{print $1}')"
 echo
-echo "  NGS QC Hub is starting…"
+echo "  Germline Exome QC Hub is starting…"
 echo "  On this machine:      http://localhost:${PORT}"
 echo "  For everyone on LAN:  http://${LAN_IP}:${PORT}"
 echo "  Press Ctrl+C to stop."

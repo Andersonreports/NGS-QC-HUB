@@ -31,7 +31,7 @@ export default function Login({ onLoggedIn }) {
             <Icon name="flask" size={22} />
           </div>
           <div>
-            <div className="text-lg font-extrabold leading-tight">NGS QC Hub</div>
+            <div className="text-lg font-extrabold leading-tight">Germline Exome QC Hub</div>
             <div className="text-xs text-slate-500 font-medium">Anderson Diagnostics</div>
           </div>
         </div>
