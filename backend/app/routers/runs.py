@@ -14,7 +14,8 @@ from ..database import get_db
 from ..deps import get_current_user, require_role
 from ..workflow import (
     STAGE_BY_ID, STAGE_INDEX, ROLES, FIRST_STAGE_ID, REVIEW_STAGE_IDS, FILE_REQUIRED_STAGES, next_stage_after,
-    actor_name_for, can_see_stage, visible_history,
+    actor_name_for, can_see_stage, visible_history, stage_roles, wetlab_can_review,
+    WETLAB_REVIEW_DOC_STAGE, WETLAB_REVIEWER_NAME,
 )
 from ..sheet_ingest import ingest_consolidated_excel, looks_like_excel
 from ..email_notify import send_new_transfer_email
@@ -72,14 +73,19 @@ def _push_stage_notifications(db: Session, run: models.Run, stage_id: str, sent_
             )
         return
 
-    owner = stage["role"]
+    owners = stage_roles(stage_id)
     owner_title = stage["title"]
+    owner_label = ROLE_LABELS[next(iter(owners))] if len(owners) == 1 else "either team head"
+    is_review = stage_id in REVIEW_STAGE_IDS
     for role in ROLES:
-        if role == owner:
+        if role in owners:
             suffix = " A revision was requested." if sent_back else ""
             text = f"Run {run.run_number}: action needed ({owner_title}).{suffix}"
+        elif is_review and role == "wetlab":
+            # Wet Lab's review is optional and never blocks — invite, don't demand.
+            text = f"Run {run.run_number}: {owner_title} — available for your review (optional)."
         else:
-            text = f"Run {run.run_number} is at {owner_title}, awaiting {ROLE_LABELS[owner]}."
+            text = f"Run {run.run_number} is at {owner_title}, awaiting {owner_label}."
         _push_notification(db, run, role, text, kind=kind)
 
 
@@ -281,18 +287,21 @@ async def advance_run(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "This run is already completed")
 
     stage = STAGE_BY_ID[run.current_stage]
-    if stage["role"] != user.role:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, f"This step belongs to {stage['role']}, not {user.role}")
+    allowed_roles = stage_roles(run.current_stage)
+    if user.role not in allowed_roles:
+        who = " or ".join(sorted(allowed_roles)) if allowed_roles else "nobody"
+        raise HTTPException(status.HTTP_403_FORBIDDEN, f"This step belongs to {who}, not {user.role}")
 
     is_review = run.current_stage in REVIEW_STAGE_IDS
     if is_review:
         if action not in ("approved", "rejected"):
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "action must be 'approved' or 'rejected'")
-        # Primary Team Head identifies corrections directly as red flags in the
-        # consolidated Excel, so an additional free-text note is optional there.
-        # Other reviewers do not have that flagging surface and must explain a
-        # send-back in their note.
-        if action == "rejected" and user.role != "primary_head" and not (note and note.strip()):
+        # The Primary Team Head identifies corrections directly as red flags in the
+        # consolidated Excel, so a free-text note is optional there. Everywhere else —
+        # the Bioinfo Head, or any head on the PDF (which has no flagging surface) —
+        # a send-back must be explained in the note.
+        note_optional_on_reject = user.role == "primary_head" and run.current_stage == "excel_head_review"
+        if action == "rejected" and not note_optional_on_reject and not (note and note.strip()):
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "A note is required when requesting changes")
     else:
         action = "completed"
@@ -323,7 +332,7 @@ async def advance_run(
     entry = models.HistoryEntry(
         run_id=run.id, stage_id=run.current_stage, action=action,
         note=reupload_note if is_reupload else (note.strip() if note else None),
-        actor_user_id=user.id, actor_name=actor_name_for(run.current_stage, user.full_name), actor_role=user.role,
+        actor_user_id=user.id, actor_name=actor_name_for(action, user.role, user.full_name), actor_role=user.role,
     )
     db.add(entry)
     db.flush()
@@ -390,6 +399,40 @@ async def advance_run(
     return _detail_out(_run_or_404(db, run.run_number), user.role)
 
 
+@router.post("/{run_number}/review", response_model=schemas.RunDetailOut)
+async def review_run(
+    run_number: str,
+    note: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_role("wetlab")),
+):
+    """Wet Lab's non-blocking review of the document currently awaiting head approval.
+    It records a 'reviewed' entry (with an optional note) in the run's history but does
+    NOT advance the run or change its status — the heads gate progress, not Wet Lab."""
+    run = _run_or_404(db, run_number)
+    if run.status == "completed":
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "This run is already completed")
+    if not wetlab_can_review(run.current_stage):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "There is no document awaiting review right now")
+
+    doc_stage = WETLAB_REVIEW_DOC_STAGE[run.current_stage]
+    document = "consolidated Excel" if doc_stage == "excel_uploaded" else "consolidated PDF"
+
+    db.add(models.HistoryEntry(
+        run_id=run.id, stage_id=doc_stage, action="reviewed",
+        note=note.strip() if note and note.strip() else None,
+        actor_user_id=user.id,
+        actor_name=actor_name_for("reviewed", user.role, user.full_name),
+        actor_role=user.role,
+    ))
+    _push_notification(
+        db, run, "primary_team",
+        f"Run {run.run_number}: {WETLAB_REVIEWER_NAME} reviewed the {document}.",
+    )
+    db.commit()
+    return _detail_out(_run_or_404(db, run.run_number), user.role)
+
+
 @router.get("/{run_number}/files/{attachment_id}")
 def download_attachment(
     run_number: str, attachment_id: str,
@@ -417,8 +460,8 @@ def download_attachment(
 # that upload step and whoever already approved is told their approval no longer holds.
 ROLLBACK_STAGES = {"excel_uploaded", "pdf_uploaded"}
 ROLLBACK_NOTIFY_ROLES = {
-    "excel_uploaded": ["primary_head", "wetlab", "bioinfo_head"],
-    "pdf_uploaded": ["wetlab"],
+    "excel_uploaded": ["primary_head", "bioinfo_head", "wetlab"],
+    "pdf_uploaded": ["primary_head", "bioinfo_head", "wetlab"],
 }
 
 

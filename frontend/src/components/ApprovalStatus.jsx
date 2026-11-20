@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { ROLES, STAGE_BY_ID } from "../workflow";
+import { STAGE_BY_ID, canonicalStage } from "../workflow";
 import { Icon, Spinner, formatDateTime } from "./ui";
 
-const APPROVAL_STAGES = [
-  "primary_head_review",
-  "wetlab_qc_review",
-  "bioinfo_review",
-  "wetlab_final_review",
-];
+// The two head-approval decisions, in order. Each is resolved by whichever team head
+// acts first (either is enough). The matching upload stage holds the document, which
+// is where Wet Lab's optional reviews are recorded.
+const APPROVAL_STAGES = ["excel_head_review", "pdf_head_review"];
+const REVIEW_DOC_STAGE = {
+  excel_head_review: "excel_uploaded",
+  pdf_head_review: "pdf_uploaded",
+};
 
 /**
  * A shared view of approval status — who approved what, when, and any notes left,
@@ -128,12 +130,26 @@ function ApprovalSteps({ history }) {
     .filter((h) => h.action === "reset")
     .reduce((latest, h) => (!latest || h.created_at > latest ? h.created_at : latest), null);
 
+  const hist = history || [];
+
   return (
     <div className="mt-3">
       {APPROVAL_STAGES.map((stageId, i) => {
-        const entry = [...(history || [])]
+        // The deciding approval/rejection — matched through the legacy alias so runs
+        // that went through the old four-approval flow still resolve onto these nodes.
+        const entry = [...hist]
           .reverse()
-          .find((h) => h.stage_id === stageId && h.action !== "completed" && (!lastReset || h.created_at > lastReset));
+          .find(
+            (h) =>
+              canonicalStage(h.stage_id) === stageId &&
+              (h.action === "approved" || h.action === "rejected") &&
+              (!lastReset || h.created_at > lastReset),
+          );
+        // Wet Lab's optional, non-blocking reviews of this document.
+        const docStage = REVIEW_DOC_STAGE[stageId];
+        const wetlabReviews = hist.filter(
+          (h) => h.stage_id === docStage && h.action === "reviewed" && (!lastReset || h.created_at > lastReset),
+        );
         const meta = STAGE_BY_ID[stageId];
         const pending = !entry;
         const rejected = entry?.action === "rejected";
@@ -160,12 +176,12 @@ function ApprovalSteps({ history }) {
 
             <div className="flex flex-wrap items-baseline gap-x-2">
               <span className={`text-sm ${pending ? "text-slate-400" : "font-semibold text-slate-800"}`}>
-                {ROLES[meta.role]?.label}
+                {meta.title}
               </span>
               <span className="text-xs text-slate-400">
                 {pending
-                  ? "pending"
-                  : `${rejected ? "requested changes" : "approved"} · ${entry.actor_name} · ${formatDateTime(entry.created_at)}`}
+                  ? "awaiting either team head"
+                  : `${rejected ? "changes requested" : "approved"} by ${entry.actor_name} · ${formatDateTime(entry.created_at)}`}
               </span>
             </div>
 
@@ -174,6 +190,14 @@ function ApprovalSteps({ history }) {
                 “{entry.note}”
               </p>
             )}
+
+            {wetlabReviews.map((r) => (
+              <p key={r.id} className="mt-1 text-xs text-slate-500">
+                <span className="font-medium text-slate-600">Wet Lab review</span> · {r.actor_name} ·{" "}
+                {formatDateTime(r.created_at)}
+                {r.note ? ` — “${r.note}”` : ""}
+              </p>
+            ))}
           </div>
         );
       })}

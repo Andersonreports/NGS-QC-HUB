@@ -1,9 +1,13 @@
 """Single source of truth for the Wet Lab -> Bioinfo data approval pipeline.
 
-Maps 1:1 onto the 12-step flow diagram. Steps 5 and 9 of that diagram ("prepares
-consolidated Excel/PDF") are work done outside the dashboard, so they are not separate
-dashboard actions — preparing and uploading are one action here. `step` is the label
-from the diagram; `id` is the internal stage key.
+Approval model: the consolidated Excel and the consolidated PDF are each gated by a
+single head-review step whose owner is *either* the Primary Team Head *or* the Bioinfo
+Team Head — whichever acts first decides (approve -> proceed, request changes -> send
+the document back for re-upload). The other head's approval is not required.
+
+Wet Lab no longer gates either document. While a document sits at its head-review step,
+Wet Lab may record a non-blocking "Reviewed" entry (with an optional note); it never
+holds up or blocks the run.
 
   diagram step        stage id               who
   1  raw data -> drive    raw_data_placed        Wet Lab
@@ -11,15 +15,18 @@ from the diagram; `id` is the internal stage key.
   3  notification         notified               Primary Team (automatic)
   4  raw CSV + Excel      drive_checked          Primary Team
   5-6 consolidated Excel  excel_uploaded         Primary Team
-  7  head approves        primary_head_review    Primary Team Head
-  7  QC approves          wetlab_qc_review       Wet Lab
-  8  bioinfo sign-off     bioinfo_review         Bioinfo Team Head
-  9-10 consolidated PDF   pdf_uploaded           Primary Team
-  11 PDF approval         wetlab_final_review    Wet Lab
-  12 status + notes       completed              —
+  7  Excel approval       excel_head_review      Primary Head OR Bioinfo Head (either)
+                          (Wet Lab reviews here, non-blocking)
+  8-9 consolidated PDF    pdf_uploaded           Primary Team
+  10 PDF approval         pdf_head_review        Primary Head OR Bioinfo Head (either)
+                          (Wet Lab reviews here, non-blocking)
+  11 status + notes       completed              —
 """
 
 ROLES = ["wetlab", "primary_team", "primary_head", "bioinfo_head"]
+
+# The two roles that can resolve a head-review step — either one is enough.
+HEAD_ROLES = ["primary_head", "bioinfo_head"]
 
 STAGES = [
     {"id": "raw_data_placed", "step": "1", "role": "wetlab",
@@ -36,23 +43,19 @@ STAGES = [
      "desc": "Raw data checked on the common drive; CSV and Excel uploaded to the dashboard as backup."},
     {"id": "excel_uploaded", "step": "5-6", "role": "primary_team",
      "title": "Consolidated Excel upload",
-     "desc": "Consolidated Excel (raw data plus essential details and analysis) uploaded for review and approvals."},
-    {"id": "primary_head_review", "step": "7", "role": "primary_head",
-     "title": "Primary Team Head approval",
-     "desc": "First approval on the consolidated Excel. Flag errors directly in the sheet; a note is optional."},
-    {"id": "wetlab_qc_review", "step": "7", "role": "wetlab",
-     "title": "Wet Lab QC approval",
-     "desc": "Second of the two-step approval — Wet Lab checks QC and approves the consolidated Excel."},
-    {"id": "bioinfo_review", "step": "8", "role": "bioinfo_head",
-     "title": "Bioinfo Team Head approval",
-     "desc": "Final sign-off on data quality for the consolidated Excel."},
-    {"id": "pdf_uploaded", "step": "9-10", "role": "primary_team",
+     "desc": "Consolidated Excel (raw data plus essential details and analysis) uploaded for review and approval."},
+    {"id": "excel_head_review", "step": "7", "roles": HEAD_ROLES,
+     "title": "Consolidated Excel approval",
+     "desc": "Either the Primary Team Head or the Bioinfo Team Head approves the consolidated Excel. "
+             "Wet Lab may review it too, but the run does not wait for them."},
+    {"id": "pdf_uploaded", "step": "8-9", "role": "primary_team",
      "title": "Consolidated PDF upload",
-     "desc": "Consolidated PDF (all details from the Excel in report format) uploaded for final review."},
-    {"id": "wetlab_final_review", "step": "11", "role": "wetlab",
-     "title": "Wet Lab PDF approval",
-     "desc": "Wet Lab views the consolidated PDF and approves, with optional notes or corrections."},
-    {"id": "completed", "step": "12", "role": None,
+     "desc": "Consolidated PDF (all details from the Excel in report format) uploaded for final approval."},
+    {"id": "pdf_head_review", "step": "10", "roles": HEAD_ROLES,
+     "title": "Consolidated PDF approval",
+     "desc": "Either the Primary Team Head or the Bioinfo Team Head approves the consolidated PDF. "
+             "Wet Lab may review it too, but the run does not wait for them."},
+    {"id": "completed", "step": "11", "role": None,
      "title": "Samples approved, moved to Tertiary team for analysis",
      "desc": "Every approval is in; the samples are handed off to the Tertiary team for analysis. "
              "All approvals, timestamps and Wet Lab notes remain available to the Primary Team."},
@@ -62,30 +65,62 @@ STAGE_BY_ID = {s["id"]: s for s in STAGES}
 STAGE_INDEX = {s["id"]: i for i, s in enumerate(STAGES)}
 FIRST_STAGE_ID = STAGES[0]["id"]
 
-REVIEW_STAGE_IDS = {"primary_head_review", "wetlab_qc_review", "bioinfo_review", "wetlab_final_review"}
+REVIEW_STAGE_IDS = {"excel_head_review", "pdf_head_review"}
 
 # A reviewer requesting changes sends the run back to the upload it was reviewing.
 REJECT_TARGET = {
-    "primary_head_review": "excel_uploaded",
-    "wetlab_qc_review": "excel_uploaded",
-    "bioinfo_review": "excel_uploaded",
-    "wetlab_final_review": "pdf_uploaded",
+    "excel_head_review": "excel_uploaded",
+    "pdf_head_review": "pdf_uploaded",
 }
 
 FILE_REQUIRED_STAGES = {"drive_checked", "excel_uploaded", "pdf_uploaded"}
 
-# The Wet Lab login covers both the initial transfer (logged as the generic "Wet Lab
-# Team") and these two approval steps, which are actually done by a named reviewer —
-# so the history for these specific stages is attributed to them by name instead of
-# the account's display name.
-ACTOR_NAME_OVERRIDE = {
-    "wetlab_qc_review": "Dr. Sivasankar",
-    "wetlab_final_review": "Dr. Sivasankar",
+# While a document is parked at its head-review step, Wet Lab may log a non-blocking
+# review of it. This maps the live head-review step to the upload step that holds the
+# document under review — the Wet Lab "reviewed" history entry is recorded against that
+# upload stage so it lines up with the document in the approval view.
+WETLAB_REVIEW_DOC_STAGE = {
+    "excel_head_review": "excel_uploaded",
+    "pdf_head_review": "pdf_uploaded",
+}
+
+# Legacy stage ids from the previous (four-approval) model, mapped onto the current
+# stages. Used to remap any in-flight run's position and to render old history entries.
+LEGACY_STAGE_ALIAS = {
+    "primary_head_review": "excel_head_review",
+    "wetlab_qc_review": "excel_head_review",
+    "bioinfo_review": "excel_head_review",
+    "wetlab_final_review": "pdf_head_review",
 }
 
 
-def actor_name_for(stage_id: str, account_full_name: str) -> str:
-    return ACTOR_NAME_OVERRIDE.get(stage_id, account_full_name)
+def stage_roles(stage_id: str) -> set:
+    """The set of roles allowed to act on a stage — one role for most, both heads for
+    a head-review stage."""
+    stage = STAGE_BY_ID[stage_id]
+    if stage.get("roles"):
+        return set(stage["roles"])
+    role = stage.get("role")
+    return {role} if role else set()
+
+
+def wetlab_can_review(current_stage: str) -> bool:
+    """True when a run is parked at a head-review step, so Wet Lab's optional,
+    non-blocking review of the live document is available."""
+    return current_stage in WETLAB_REVIEW_DOC_STAGE
+
+
+# The Wet Lab login covers both the initial transfer (logged as the generic "Wet Lab
+# Team") and the non-blocking document review, which is actually done by a named
+# reviewer — so a "reviewed" action is attributed to them by name instead of the
+# account's display name.
+WETLAB_REVIEWER_NAME = "Dr. Sivasankar"
+
+
+def actor_name_for(action: str, role: str, account_full_name: str) -> str:
+    if action == "reviewed" and role == "wetlab":
+        return WETLAB_REVIEWER_NAME
+    return account_full_name
 
 
 # Steps that are another team's internal mechanics, hidden from roles with no part in
@@ -109,7 +144,7 @@ def visible_history(history, role):
 
 
 def stage_role(stage_id: str):
-    return STAGE_BY_ID[stage_id]["role"]
+    return STAGE_BY_ID[stage_id].get("role")
 
 
 def next_stage_after(stage_id: str, action: str) -> str:
