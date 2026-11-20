@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { ROLES, STAGE_BY_ID, UPLOAD_SLOTS, UPLOAD_ANY_OF, isAwaiting } from "../workflow";
+import { ROLES, STAGE_BY_ID, UPLOAD_SLOTS, UPLOAD_ANY_OF, isAwaiting, wetlabCanReview, stageRoles } from "../workflow";
 import AttachmentList from "./AttachmentList";
 import FileRow from "./FileRow";
 import FilePreview from "./FilePreview";
@@ -23,11 +23,21 @@ export default function RunActionForm({ run, user, onDone, inlinePreview = false
     );
   }
 
+  // Wet Lab's review is optional and non-blocking — the run is never "awaiting" them,
+  // so it's offered here, separately from the isAwaiting gate below.
+  if (user.role === "wetlab" && wetlabCanReview(run)) {
+    return (
+      <WetlabReviewForm run={run} stage={stage} user={user} onDone={onDone} inlinePreview={inlinePreview} hideFiles={compact} compact={compact} />
+    );
+  }
+
   if (!isAwaiting(run, user.role)) {
+    const ownerLabel =
+      stageRoles(run.current_stage).map((r) => ROLES[r]?.label).filter(Boolean).join(" or ") || "another team";
     return (
       <Alert kind="info">
         <span className="font-semibold">{stage.title}</span> is with{" "}
-        <span className="font-semibold">{ROLES[stage.role]?.label}</span>.
+        <span className="font-semibold">{ownerLabel}</span>.
         You'll be notified when it reaches your team.
       </Alert>
     );
@@ -153,7 +163,10 @@ export function ReviewForm({ run, stage, user, onDone, hideFiles = false, inline
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState(null);
   const [preview, setPreview] = useState(null);
-  const noteRequired = stage.role !== "primary_head";
+  // The Primary Team Head flags Excel errors directly in the grid, so a note is
+  // optional when they send the Excel back. Every other case (Bioinfo Head, or any
+  // head on the PDF) must explain the send-back — mirrors the backend rule.
+  const noteRequired = !(user.role === "primary_head" && stage.id === "excel_head_review");
 
   const latestWithFiles = [...(run.history || [])].reverse().find((h) => h.attachments?.length);
 
@@ -283,6 +296,134 @@ export function ReviewForm({ run, stage, user, onDone, hideFiles = false, inline
         <button className="btn-danger" onClick={() => act("rejected")} disabled={busy !== null}>
           {busy === "rejected" ? <Spinner /> : <Icon name="x" size={15} strokeWidth={2.4} />}
           Request changes
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Wet Lab's optional, non-blocking review of the document currently awaiting head
+ * approval. It records a note in the run history but never advances or blocks the run —
+ * so there's no Approve/Reject, just "Mark reviewed" and a clear "optional" framing. */
+export function WetlabReviewForm({ run, stage, user, onDone, hideFiles = false, inlinePreview = false, compact = false }) {
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const docName = run.current_stage === "pdf_head_review" ? "PDF" : "Excel";
+
+  const latestWithFiles = [...(run.history || [])].reverse().find((h) => h.attachments?.length);
+
+  useEffect(() => {
+    if (!inlinePreview || !latestWithFiles?.attachments?.length) return;
+    const first = latestWithFiles.attachments[0];
+    setPreview({
+      kind: "remote",
+      runNumber: run.run_number,
+      attachmentId: first.id,
+      filename: first.filename,
+      sizeBytes: first.size_bytes,
+      stageId: latestWithFiles.stage_id,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inlinePreview, latestWithFiles?.id]);
+
+  async function submit() {
+    setBusy(true);
+    setError(null);
+    try {
+      const updated = await api.reviewRun(run.run_number, { note });
+      setNote("");
+      onDone(updated);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (compact) {
+    return (
+      <div className="space-y-2">
+        {error && <Alert kind="error">{error}</Alert>}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {latestWithFiles?.attachments?.[0] && (
+            <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 min-w-0 shrink-0 max-w-[16rem]">
+              <Icon name="file" size={14} className="text-slate-400 shrink-0" />
+              <span className="truncate">{latestWithFiles.attachments[0].filename}</span>
+            </div>
+          )}
+          <input
+            className="field flex-1 min-w-[10rem] py-1.5 text-sm"
+            placeholder="Review note (optional)"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
+          <button className="btn-primary py-1.5 px-3 text-sm shrink-0" onClick={submit} disabled={busy}>
+            {busy ? <Spinner /> : <Icon name="check" size={14} strokeWidth={2.4} />}
+            Mark reviewed
+          </button>
+        </div>
+        <p className="text-xs text-slate-500">Optional — the run doesn't wait for your review.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-slate-600">
+        Review the consolidated {docName} if you'd like. This is optional — the run proceeds on a
+        team head's approval and does not wait for you.
+      </p>
+      {error && <Alert kind="error">{error}</Alert>}
+
+      {latestWithFiles && !hideFiles && (
+        <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+            For your review
+          </div>
+          {inlinePreview ? (
+            <div className="space-y-2">
+              {latestWithFiles.attachments.length > 1 && (
+                <div className="space-y-1.5">
+                  {latestWithFiles.attachments.map((file) => (
+                    <FileRow
+                      key={file.id}
+                      file={file}
+                      runNumber={run.run_number}
+                      stageId={latestWithFiles.stage_id}
+                      onPreview={setPreview}
+                      active={preview?.attachmentId === file.id}
+                    />
+                  ))}
+                </div>
+              )}
+              <div className="h-[26rem]">
+                <FilePreview source={preview} role={user?.role} onClear={null} />
+              </div>
+            </div>
+          ) : (
+            <AttachmentList runNumber={run.run_number} attachments={latestWithFiles.attachments} />
+          )}
+        </div>
+      )}
+
+      <div>
+        <label className="label" htmlFor={`wlreview-${run.run_number}`}>Review note (optional)</label>
+        <textarea
+          id={`wlreview-${run.run_number}`}
+          className="field"
+          rows={2}
+          placeholder="Add any observations…"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+        />
+      </div>
+
+      <div className="flex flex-wrap gap-2.5">
+        <button className="btn-primary" onClick={submit} disabled={busy}>
+          {busy ? <Spinner /> : <Icon name="check" size={15} strokeWidth={2.4} />}
+          Mark reviewed
         </button>
       </div>
     </div>

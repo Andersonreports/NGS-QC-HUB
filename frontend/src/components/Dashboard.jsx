@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ROLES, STAGE_BY_ID, isAwaiting, runState, stageLabelFor } from "../workflow";
+import { ROLES, STAGE_BY_ID, isAwaiting, runState, stageLabelFor, stageRoles } from "../workflow";
 import { Icon, timeAgo } from "./ui";
 
 /**
@@ -209,7 +209,13 @@ function RunRow({ run, user, onViewRun }) {
 
           <span className="text-sm text-slate-600 truncate">{stageLabelFor(run, user.role)}</span>
 
-          <span className="text-xs text-slate-500 truncate">{stage.role ? ROLES[stage.role]?.label : ""}</span>
+          <span className="text-xs text-slate-500 truncate">
+            {stageRoles(run.current_stage).length > 1
+              ? "Team heads"
+              : stage.role
+              ? ROLES[stage.role]?.label
+              : ""}
+          </span>
 
           <span className="text-xs text-slate-500 flex items-center gap-1.5 justify-end">
             <Icon name="file" size={13} className="text-slate-400" />

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { STAGE_BY_ID, isAwaiting, wasSentBack } from "../workflow";
+import { STAGE_BY_ID, isAwaiting, wasSentBack, wetlabCanReview } from "../workflow";
 import RunActionForm from "./RunActionForm";
 import { Alert, Icon, Spinner, daysSince, formatDateTime, timeAgo } from "./ui";
 
@@ -24,7 +24,10 @@ function needsConsolidatedReminder(run) {
  * since those are the two things Primary Team most needs to notice immediately.
  */
 export default function PendingRuns({ runs, user, onChanged, onViewRun, title }) {
-  const mine = [...runs.filter((r) => isAwaiting(r, user.role))].sort((a, b) => {
+  // Wet Lab's optional, non-blocking reviews appear here too — the run isn't waiting on
+  // them, but it's where they'd go to look at the document awaiting head approval.
+  const canReview = (r) => user.role === "wetlab" && !isAwaiting(r, user.role) && wetlabCanReview(r);
+  const mine = [...runs.filter((r) => isAwaiting(r, user.role) || canReview(r))].sort((a, b) => {
     const score = (r) => (r.awaiting_reupload ? 3 : needsConsolidatedReminder(r) ? 2 : isFreshIntake(r) ? 1 : 0);
     return score(b) - score(a) || new Date(b.updated_at) - new Date(a.updated_at);
   });
@@ -54,6 +57,7 @@ export default function PendingRuns({ runs, user, onChanged, onViewRun, title })
           const fresh = isFreshIntake(run);
           const overdue = needsConsolidatedReminder(run);
           const rejected = run.awaiting_reupload;
+          const optional = canReview(run);
           const age = daysSince(run.created_at);
 
           return (
@@ -83,6 +87,7 @@ export default function PendingRuns({ runs, user, onChanged, onViewRun, title })
                   </span>
                 )}
                 {rejected && <span className="chip bg-accent-800 text-white shrink-0">Changes requested</span>}
+                {optional && <span className="chip bg-slate-100 text-slate-600 shrink-0">Optional review</span>}
                 <span className="text-sm font-semibold text-slate-700 truncate min-w-0 flex-1">
                   {stage.title}
                 </span>
