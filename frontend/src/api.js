@@ -104,6 +104,9 @@ export const api = {
     request(`/api/runs/${encodeURIComponent(runNumber)}/sheet/reingest`, { method: "POST", json: { sheet_name: sheetName } }),
   sheetExportUrl: (runNumber) => `${BASE}/api/runs/${encodeURIComponent(runNumber)}/sheet/export.xlsx`,
 
+  getTotalWorkDone: () => request("/api/dashboard/total-work-done"),
+  totalWorkDoneExportUrl: (format) => `${BASE}/api/dashboard/total-work-done/export?format=${format}`,
+
   getMonthlyReport: (year, month) => request(`/api/reports/monthly?year=${year}&month=${month}`),
   editMonthlyReportCell: (runNumber, field, value) =>
     request(`/api/reports/monthly/${encodeURIComponent(runNumber)}/cell`, { method: "PATCH", json: { field, value } }),
@@ -153,6 +156,23 @@ export async function downloadMonthlyReport(year, month) {
   a.href = url;
   const monthName = new Date(year, month - 1, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" });
   a.download = `Consolidated_${monthName.replace(" ", "_")}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/** Download the Total Work Done summary in the given format (currently "pdf"). */
+export async function downloadTotalWorkDone(format) {
+  const res = await fetch(api.totalWorkDoneExportUrl(format), {
+    headers: { Authorization: `Bearer ${getToken()}` },
+  });
+  if (!res.ok) throw new Error("Could not export the totals.");
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `Total_Work_Done_${new Date().toISOString().slice(0, 10)}.${format}`;
   document.body.appendChild(a);
   a.click();
   a.remove();

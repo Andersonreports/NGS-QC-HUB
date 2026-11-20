@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse
 
 from .database import Base, engine
 from .migrations import run_migrations
-from .routers import auth, runs, notifications, admin, sheets, reports
+from .routers import auth, runs, notifications, admin, sheets, reports, dashboard
 from .seed import seed_default_accounts, sync_seed_display_names
 
 Base.metadata.create_all(bind=engine)
@@ -31,6 +31,7 @@ app.include_router(notifications.router)
 app.include_router(admin.router)
 app.include_router(sheets.router)
 app.include_router(reports.router)
+app.include_router(dashboard.router)
 
 FRONTEND_DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
 

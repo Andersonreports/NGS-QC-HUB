@@ -199,7 +199,7 @@ export default function App() {
             onSilentChange={() => afterChange()}
           />
         ) : tab === "overview" && OVERVIEW_ROLES.includes(user.role) ? (
-          <Overview user={user} runs={runs} onViewRun={setViewingRun} onOpenWork={() => setTab("work")} />
+          <Overview user={user} runs={runs} />
         ) : tab === "work" ? (
           <WorkView
             user={user}
