@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { ROLES, STAGES, STAGE_BY_ID, isAwaiting, runState } from "../workflow";
+import { ROLES, STAGES, STAGE_BY_ID, isAwaiting, runState, stageRoles } from "../workflow";
 import { Icon, daysSince, timeAgo } from "./ui";
 
 // Matches the reminder threshold used for "days since transfer" elsewhere.
@@ -125,13 +125,17 @@ export default function Overview({ user, runs, onViewRun, onOpenWork }) {
           <ul className="mt-4 space-y-2.5">
             {PIPELINE_STAGES.filter((s) => s.id !== "completed").map((s) => {
               const count = data.byStage[s.id];
-              const role = ROLES[s.role];
+              // Head-review stages are owned by both heads — show a combined label but
+              // keep a single colour (the first owner's) for the bar.
+              const ownerIds = stageRoles(s.id);
+              const role = ROLES[ownerIds[0]];
+              const roleLabel = ownerIds.length > 1 ? "Team heads" : role?.label;
               return (
                 <li key={s.id} className="grid grid-cols-[minmax(0,12rem)_minmax(0,1fr)_2rem] sm:grid-cols-[minmax(0,15rem)_minmax(0,1fr)_2rem] gap-3 items-center">
                   <div className="min-w-0">
                     <div className="text-sm font-medium truncate">{s.title}</div>
                     <div className="text-xs font-semibold" style={{ color: role?.color }}>
-                      {role?.label}
+                      {roleLabel}
                     </div>
                   </div>
                   <div className="h-2.5 rounded-full bg-slate-100 overflow-hidden">

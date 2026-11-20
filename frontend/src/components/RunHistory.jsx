@@ -8,6 +8,7 @@ import {
   runState,
   stageLabelFor,
   visibleStages,
+  wetlabCanReview,
 } from "../workflow";
 import FilePreview from "./FilePreview";
 import FileRow from "./FileRow";
@@ -135,7 +136,9 @@ export default function RunHistory({ runNumber, user, onBack, onChanged, onSilen
   const currentIdx = STAGE_INDEX[run.current_stage];
   const currentVisible = canSeeStage(run.current_stage, role);
   const state = runState(run);
-  const actionable = user && isAwaiting(run, user.role);
+  // Wet Lab's optional review is actionable too, though the run isn't "awaiting" them.
+  const actionable =
+    user && (isAwaiting(run, user.role) || (user.role === "wetlab" && wetlabCanReview(run)));
   const stages = visibleStages(role);
   const entriesByStage = {};
   (run.history || []).forEach((h) => {

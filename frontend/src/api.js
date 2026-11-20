@@ -79,6 +79,13 @@ export const api = {
     (files || []).forEach((f) => form.append("files", f));
     return request(`/api/runs/${encodeURIComponent(runNumber)}/advance`, { method: "POST", form });
   },
+  // Wet Lab's non-blocking review of the document awaiting head approval. Records a
+  // note in the run history without advancing the run.
+  reviewRun: (runNumber, { note } = {}) => {
+    const form = new FormData();
+    if (note) form.append("note", note);
+    return request(`/api/runs/${encodeURIComponent(runNumber)}/review`, { method: "POST", form });
+  },
   attachmentUrl: (runNumber, attachmentId) =>
     `${BASE}/api/runs/${encodeURIComponent(runNumber)}/files/${attachmentId}`,
   deleteFile: (runNumber, attachmentId) =>
