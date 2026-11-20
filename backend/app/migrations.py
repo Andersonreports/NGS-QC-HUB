@@ -25,6 +25,18 @@ ADDITIVE_COLUMNS = {
 }
 
 
+# One-shot remaps of retired workflow stage ids onto the current ones, for runs that
+# were already in flight when the approval model changed. Idempotent: only rows still
+# carrying a retired id are touched, so this is a no-op once they're all migrated.
+# Kept in sync with workflow.LEGACY_STAGE_ALIAS.
+STAGE_REMAP = {
+    "primary_head_review": "excel_head_review",
+    "wetlab_qc_review": "excel_head_review",
+    "bioinfo_review": "excel_head_review",
+    "wetlab_final_review": "pdf_head_review",
+}
+
+
 def run_migrations(engine: Engine) -> None:
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())
@@ -39,3 +51,15 @@ def run_migrations(engine: Engine) -> None:
                     continue
                 conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {sql_type}"))
                 print(f"[migration] added {table}.{name}")
+
+        # Move any in-flight run off a retired review stage. History entries keep their
+        # original stage ids (the audit trail is left intact); only the run's current
+        # position is remapped so it resolves to a live stage.
+        if "runs" in existing_tables:
+            for old_stage, new_stage in STAGE_REMAP.items():
+                result = conn.execute(
+                    text("UPDATE runs SET current_stage = :new WHERE current_stage = :old"),
+                    {"new": new_stage, "old": old_stage},
+                )
+                if result.rowcount:
+                    print(f"[migration] remapped {result.rowcount} run(s): {old_stage} -> {new_stage}")

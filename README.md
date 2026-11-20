@@ -1,8 +1,9 @@
 # Germline Exome QC Hub
 
 Internal workflow app for the Wet Lab ↔ Bioinformatics handoff: Wet Lab records a raw data
-transfer by run number, the Primary Team uploads the CSV/Excel, and the run moves through the
-Primary Head → Wet Lab QC → Bioinfo Head approval chain to a final PDF sign-off.
+transfer by run number, the Primary Team uploads the CSV/Excel, and both the consolidated Excel
+and the consolidated PDF are each approved by **either** team head (Primary Head or Bioinfo Head —
+one approval is enough). Wet Lab can review either document, but the run never waits on them.
 
 ## Running it on the LAN
 
@@ -47,28 +48,37 @@ The app never shows step numbers — teams see plain instructions ("Upload raw C
 diagram; steps 5 and 9 there ("prepares consolidated Excel/PDF") are work done outside the
 dashboard, so preparing and uploading are a single action here.
 
-| Who               | What they do in the app                                        | Diagram |
-| ----------------- | -------------------------------------------------------------- | ------- |
-| Wet Lab           | Enter run number → **Mark as transferred**                     | 1–2     |
-| —                 | Primary Team notified (floating alert + bell)                  | 3       |
-| Primary Team      | **Upload raw CSV & Excel**                                     | 4       |
-| Primary Team      | **Upload consolidated Excel** → sends it for approval          | 5–6     |
-| Primary Team Head | Approve the consolidated Excel, or send it back                | 7       |
-| Wet Lab           | Check QC and approve the Excel                                 | 7       |
-| Bioinfo Team Head | Final sign-off on data quality                                 | 8       |
-| Primary Team      | **Upload consolidated PDF**                                    | 9–10    |
-| Wet Lab           | Approve the report PDF, with optional notes                    | 11      |
-| Primary Team      | **Approval status & notes** — who approved what, when          | 12      |
+| Who                  | What they do in the app                                        | Diagram |
+| -------------------- | -------------------------------------------------------------- | ------- |
+| Wet Lab              | Enter run number → **Mark as transferred**                     | 1–2     |
+| —                    | Primary Team notified (floating alert + bell)                  | 3       |
+| Primary Team         | **Upload raw CSV & Excel**                                     | 4       |
+| Primary Team         | **Upload consolidated Excel** → sends it for approval          | 5–6     |
+| Primary **or** Bioinfo Head | Approve the consolidated Excel, or send it back — **either head is enough** | 7 |
+| Wet Lab              | *Optionally* review the Excel (non-blocking)                   | 7       |
+| Primary Team         | **Upload consolidated PDF**                                    | 8–9     |
+| Primary **or** Bioinfo Head | Approve the consolidated PDF, or send it back — **either head is enough** | 10 |
+| Wet Lab              | *Optionally* review the PDF (non-blocking)                     | 10      |
+| Primary Team         | **Approval status & notes** — who approved what, when          | 11      |
 
-The last step reads **"Samples approved — moved to Tertiary team for analysis"**: once
-Wet Lab's PDF approval is in, every approval is complete and the samples are considered
-handed off to the Tertiary team for their own analysis. That's a status, not an account in
-this app yet — there's no Tertiary login or action here, just the label and the notification
-telling the Primary Team it happened.
+Each document — the consolidated Excel and the consolidated PDF — is gated by a single
+approval step owned by **both** team heads: whichever of the Primary Team Head or the Bioinfo
+Team Head acts first decides it (approve → proceed, request changes → send back). The other
+head's approval is **not** required. Wet Lab is no longer a gate on either document; while a
+document is awaiting head approval, Wet Lab may record an optional **"Reviewed"** note, but the
+run never waits for them.
 
-Any reviewer requesting changes sends the run back with a required note — Excel approvals
-return it to the consolidated Excel upload, the PDF approval to the PDF upload. Every action
-is kept in the run's history with who did it, when, and the files attached.
+The last step reads **"Samples approved — moved to Tertiary team for analysis"**: once a head's
+PDF approval is in, every approval is complete and the samples are considered handed off to the
+Tertiary team for their own analysis. That's a status, not an account in this app yet — there's
+no Tertiary login or action here, just the label and the notification telling the Primary Team
+it happened.
+
+A head requesting changes sends the run back with a note (optional only for the Primary Team
+Head on the Excel, since they flag errors directly in the sheet) — Excel approvals return it to
+the consolidated Excel upload, PDF approvals to the PDF upload. Every action — approvals, Wet
+Lab reviews, send-backs — is kept in the run's history with who did it, when, and the files
+attached.
 
 ### Tracking send-backs
 
@@ -99,9 +109,8 @@ A later upload stays locked until the earlier one is done, and each lock says wh
 
 1. **Raw CSV & Excel** — always available on a transferred run.
 2. **Consolidated Excel** — locked until the raw CSV *and* Excel are uploaded.
-3. **Consolidated PDF** — locked until the consolidated Excel has **all three** approvals.
-   The lock shows a live checklist of Primary Team Head / Wet Lab QC / Bioinfo Team Head,
-   marking each as approved, reviewing now, or pending.
+3. **Consolidated PDF** — locked until the consolidated Excel has been approved by **either**
+   team head. The lock clears as soon as one head (Primary or Bioinfo) signs off the Excel.
 
 This is enforced server-side too, not just in the UI — the API rejects an upload aimed at a
 step the run isn't on, so the order can't be bypassed.
@@ -160,7 +169,8 @@ publicly reachable by URL.
 Each role gets only the screens it needs, so nothing is duplicated across tabs.
 
 - **Wet Lab** — a single screen: mark a transfer, then the Primary Team's files to preview and
-  approve, then the counts and run list. No tab bar, because there's nothing to switch between.
+  *optionally review* (their review never blocks the run), then the counts and run list. No tab
+  bar, because there's nothing to switch between.
 - **Primary Team** — lands on **Uploads & preview** (their main job). *My work* holds anything
   waiting on them, the approval status board, and the run list.
 - **Primary Team Head / Bioinfo Team Head** — land on an approval page per run: the document

@@ -60,27 +60,11 @@ export const STAGES = [
     needsFiles: true,
   },
   {
-    id: "primary_head_review",
-    role: "primary_head",
-    title: "Primary Team Head approval",
+    id: "excel_head_review",
+    roles: ["primary_head", "bioinfo_head"],
+    title: "Consolidated Excel approval",
     heading: "Approve the consolidated Excel",
-    desc: "Check the consolidated Excel and approve it, or flag errors in the sheet and send it back. A note is optional.",
-    review: true,
-  },
-  {
-    id: "wetlab_qc_review",
-    role: "wetlab",
-    title: "Wet Lab QC approval",
-    heading: "Check QC and approve the Excel",
-    desc: "Check the QC and approve the consolidated Excel, or send it back with a note.",
-    review: true,
-  },
-  {
-    id: "bioinfo_review",
-    role: "bioinfo_head",
-    title: "Bioinfo Team Head approval",
-    heading: "Final sign-off on the Excel",
-    desc: "Final sign-off on data quality for the consolidated Excel.",
+    desc: "Either team head approves the consolidated Excel — one approval is enough. Approve it, or flag errors in the sheet and send it back. Wet Lab may also review it, but the run doesn't wait for them.",
     review: true,
   },
   {
@@ -94,11 +78,11 @@ export const STAGES = [
     needsFiles: true,
   },
   {
-    id: "wetlab_final_review",
-    role: "wetlab",
-    title: "Wet Lab PDF approval",
-    heading: "Approve the report PDF",
-    desc: "View the consolidated PDF and approve it, adding notes or corrections if needed.",
+    id: "pdf_head_review",
+    roles: ["primary_head", "bioinfo_head"],
+    title: "Consolidated PDF approval",
+    heading: "Approve the consolidated PDF",
+    desc: "Either team head approves the consolidated PDF — one approval is enough. Approve it, or send it back with a note. Wet Lab may also review it, but the run doesn't wait for them.",
     review: true,
   },
   {
@@ -111,6 +95,36 @@ export const STAGES = [
 
 export const STAGE_BY_ID = Object.fromEntries(STAGES.map((s) => [s.id, s]));
 export const STAGE_INDEX = Object.fromEntries(STAGES.map((s, i) => [s.id, i]));
+
+/** Old stage ids from the previous four-approval model, mapped onto the current
+ * stages, so in-flight runs and historical entries still resolve. Kept in sync with
+ * backend/app/workflow.py's LEGACY_STAGE_ALIAS. */
+export const LEGACY_STAGE_ALIAS = {
+  primary_head_review: "excel_head_review",
+  wetlab_qc_review: "excel_head_review",
+  bioinfo_review: "excel_head_review",
+  wetlab_final_review: "pdf_head_review",
+};
+
+export function canonicalStage(stageId) {
+  return LEGACY_STAGE_ALIAS[stageId] || stageId;
+}
+
+/** The roles allowed to act on a stage — one for most, both heads for a head review. */
+export function stageRoles(stageId) {
+  const stage = STAGE_BY_ID[stageId];
+  if (!stage) return [];
+  return stage.roles || (stage.role ? [stage.role] : []);
+}
+
+/** The head-review stages where Wet Lab's optional, non-blocking review is available. */
+export const WETLAB_REVIEW_STAGES = new Set(["excel_head_review", "pdf_head_review"]);
+
+/** True when Wet Lab may record a (non-blocking) review of the live document. This is
+ * deliberately NOT the same as isAwaiting — the run never waits on Wet Lab. */
+export function wetlabCanReview(run) {
+  return run.status === "in_progress" && WETLAB_REVIEW_STAGES.has(run.current_stage);
+}
 
 /** File inputs each upload step asks for. */
 export const UPLOAD_SLOTS = {
@@ -165,7 +179,7 @@ export function stageOf(run) {
 
 export function isAwaiting(run, role) {
   const stage = STAGE_BY_ID[run.current_stage];
-  return run.status === "in_progress" && stage && stage.role === role;
+  return run.status === "in_progress" && !!stage && stageRoles(run.current_stage).includes(role);
 }
 
 export function wasSentBack(run) {
