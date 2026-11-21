@@ -126,7 +126,7 @@ export default function TotalWorkDone({ refreshKey }) {
       ) : data ? (
         <div className="space-y-7">
           {/* ---- SAMPLE ---- */}
-          <Group title="Sample" subtitle="Samples by test type" icon="flask" tone="blue" cols="grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
+          <Group title="Sample" subtitle="Samples by test type" icon="flask" tone="blue" cols="grid-cols-2 md:grid-cols-3 2xl:grid-cols-6">
             <Stat label="WES" icon="dna" tone="blue" value={s.wes.total} className="col-span-2 md:col-span-1">
               <ul className="mt-3.5 pt-3 border-t border-white/25 space-y-1.5 text-xs text-white/85">
                 <SubRow label="WES" value={s.wes.wes} />
@@ -137,6 +137,7 @@ export default function TotalWorkDone({ refreshKey }) {
             <Stat label="Panel" icon="grid" tone="teal" value={s.panel} />
             <Stat label="Mito" icon="activity" tone="amber" value={s.mito} hint="standalone" />
             <Stat label="CES" icon="flask" tone="pink" value={s.ces} />
+            <Stat label="Others" icon="moreCircle" tone="slate" value={s.others} hint="other test types" className="col-span-2 md:col-span-1" />
           </Group>
 
           {/* ---- QC ---- */}

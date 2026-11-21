@@ -141,6 +141,7 @@
 .tone-orange  { --from: #c2410c; --to: #f97316; --shadow: rgba(234, 88, 12, 0.5); }
 .tone-indigo  { --from: #4338ca; --to: #6366f1; --shadow: rgba(79, 70, 229, 0.55); }
 .tone-sky     { --from: #0369a1; --to: #0ea5e9; --shadow: rgba(2, 132, 199, 0.5); }
+.tone-slate   { --from: #334155; --to: #64748b; --shadow: rgba(71, 85, 105, 0.5); }
 .tone-fuchsia { --from: #a21caf; --to: #d946ef; --shadow: rgba(192, 38, 211, 0.5); }
 
 .gcard {

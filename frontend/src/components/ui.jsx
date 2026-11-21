@@ -34,6 +34,7 @@ const ICON_PATHS = {
   helpCircle: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7 M12 17h.01",
   clipboard: "M9 3h6v3H9z M7 5H5v16h14V5h-2 M9 12h6 M9 16h4",
   activity: "M3 12h4l3-8 4 16 3-8h4",
+  moreCircle: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M8 12h.01 M12 12h.01 M16 12h.01",
   chevronDown: "M6 9l6 6 6-6",
   notepadPen: "M6 2.5h9l4 4v15h-13z M15 2.5v4h4 M8.5 12h5.5 M14 17.2l4.3-4.3 1.6 1.6-4.3 4.3-2.1.5z",
 };

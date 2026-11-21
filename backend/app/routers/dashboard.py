@@ -113,7 +113,9 @@ def _file_hash(path: Path) -> str:
 
 def _count_samples(tests: list[str]) -> dict:
     wes = wes_mito = wgs = panel = mito = ces = 0
+    others = 0
     for t in tests:
+        before = (wes, wes_mito, wgs, panel, mito, ces)
         if t in ("WES", "WHOLE EXOME SEQUENCING"):  # two names for the same test
             wes += 1
         elif _WES_MITO.match(t):
@@ -127,6 +129,11 @@ def _count_samples(tests: list[str]) -> dict:
             panel += 1
         if "CES" in t:
             ces += 1
+        # Others: a sample none of the categories above picked up. Decided from the
+        # counters themselves, so the category rules stay exactly as written above and
+        # a sample is never in Others and another card at once.
+        if (wes, wes_mito, wgs, panel, mito, ces) == before:
+            others += 1
     return {
         "wes": {
             "total": wes + wes_mito,
@@ -137,6 +144,7 @@ def _count_samples(tests: list[str]) -> dict:
         "panel": panel,
         "mito": mito,
         "ces": ces,
+        "others": others,
     }
 
 
@@ -266,6 +274,7 @@ def _build_pdf(data: dict) -> bytes:
             ("Panel", s["panel"], True),
             ("Mito", s["mito"], True),
             ("CES", s["ces"], True),
+            ("Others", s["others"], True),
         ]),
         ("QC", [
             ("Pass", qc["pass"], True),
