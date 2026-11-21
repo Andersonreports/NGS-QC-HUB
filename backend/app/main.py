@@ -9,11 +9,21 @@ from .database import Base, engine
 from .migrations import run_migrations
 from .routers import auth, runs, notifications, admin, sheets, reports, dashboard
 from .seed import seed_default_accounts, sync_seed_display_names
+from .database import SessionLocal
+from .file_naming import rename_existing_consolidated_files
 
 Base.metadata.create_all(bind=engine)
 run_migrations(engine)
 seed_default_accounts()
 sync_seed_display_names()
+
+# Files uploaded before the "_consolidated" naming rule existed get renamed once.
+_db = SessionLocal()
+try:
+    for _change in rename_existing_consolidated_files(_db):
+        print("Renamed consolidated Excel:", _change)
+finally:
+    _db.close()
 
 app = FastAPI(title="Germline Exome QC Hub API")
 

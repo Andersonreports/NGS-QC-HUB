@@ -1,5 +1,7 @@
 """Total Work Done dashboard: sample and QC totals computed on demand from the
-consolidated Excel in every work folder under UPLOADS_DIR.
+consolidated Excel in every work folder under UPLOADS_DIR — but only for runs whose
+consolidated Excel has been approved by a head (see `_is_approved`). Folders still
+pending approval are skipped and listed under "not counted".
 
 Nothing is stored or hardcoded — each request re-scans the folders, so a new
 work folder is included as soon as it exists. Parsed files are cached by
@@ -13,9 +15,12 @@ from pathlib import Path
 import openpyxl
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fpdf import FPDF
+from sqlalchemy import func
+from sqlalchemy.orm import Session, joinedload
 
 from .. import models
 from ..config import UPLOADS_DIR
+from ..database import get_db
 from ..deps import get_current_user
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
@@ -135,15 +140,73 @@ def _count_samples(tests: list[str]) -> dict:
     }
 
 
-def _compute() -> dict:
+APPROVER_ROLES = {"primary_head", "bioinfo_head"}
+CONSOLIDATED_STAGE = "excel_uploaded"
+
+
+def _is_approved(history: list) -> bool:
+    """Whether the run's *current* consolidated Excel has been approved by a head
+    (Primary Team Head or Bioinfo Team Head). Replays the history in order:
+
+      - a head's approval marks it approved;
+      - a (re-)upload of the Excel, its removal, or any reviewer sending the run back
+        clears that approval — the approved file is no longer the one on the run, or
+        the run has gone back for changes — until a head approves again.
+
+    Approvals by other roles (Wet Lab) neither grant nor revoke it."""
+    approved = False
+    for h in sorted(history, key=lambda h: h.created_at):
+        if h.action == "approved" and h.actor_role in APPROVER_ROLES:
+            approved = True
+        elif h.action in ("rejected", "reset"):
+            approved = False
+        elif h.stage_id == CONSOLIDATED_STAGE and h.action == "completed":
+            approved = False
+    return approved
+
+
+def _approved_run_numbers(db: Session) -> set[str]:
+    runs = db.query(models.Run).options(joinedload(models.Run.history)).all()
+    return {r.run_number for r in runs if _is_approved(r.history)}
+
+
+def _head_qc_counts(db: Session, run_numbers: list[str]) -> dict:
+    """Pass / Fail sample counts from the QC status Primary Team Head sets on each
+    sample row of a run's sheet (SheetRow.qc_pass), for the runs being counted.
+    Read as-is — the edit endpoint and its validation are untouched. A row the head
+    hasn't touched is "Pass", the sheet's own default."""
+    counts = {"pass": 0, "fail": 0}
+    if not run_numbers:
+        return counts
+    rows = (
+        db.query(models.SheetRow.qc_pass, func.count(models.SheetRow.id))
+        .join(models.Sheet, models.SheetRow.sheet_id == models.Sheet.id)
+        .join(models.Run, models.Sheet.run_id == models.Run.id)
+        .filter(models.Run.run_number.in_(run_numbers))
+        .group_by(models.SheetRow.qc_pass)
+        .all()
+    )
+    for status_value, n in rows:
+        if status_value == "Pass":
+            counts["pass"] = n
+        elif status_value == "Fail":
+            counts["fail"] = n
+    return counts
+
+
+def _compute(db: Session) -> dict:
     tests: list[str] = []
     gen_ids: list[str] = []
     processed: list[str] = []
     skipped: list[dict] = []
     seen_hashes: dict[str, str] = {}
 
+    approved = _approved_run_numbers(db)
     folders = sorted(p for p in UPLOADS_DIR.iterdir() if p.is_dir()) if UPLOADS_DIR.exists() else []
     for folder in folders:
+        if folder.name not in approved:
+            skipped.append({"folder": folder.name, "reason": "pending approval"})
+            continue
         try:
             path = _find_consolidated(folder)
             if path is None:
@@ -168,8 +231,9 @@ def _compute() -> dict:
     return {
         "sample": _count_samples(tests),
         "qc": {
-            "pass": len(gen_ids),
-            "fail": 0,  # placeholder until failures are tracked
+            # Pass / Fail are the Primary Team Head's own per-sample QC decisions from the
+            # My Work sheet, so they follow every change the head makes there.
+            **_head_qc_counts(db, processed),
             "resequence": sum(1 for g in gen_ids if g.endswith("A")),
         },
         "meta": {
@@ -182,8 +246,8 @@ def _compute() -> dict:
 
 
 @router.get("/total-work-done")
-def total_work_done(_: models.User = Depends(get_current_user)):
-    return _compute()
+def total_work_done(db: Session = Depends(get_db), _: models.User = Depends(get_current_user)):
+    return _compute(db)
 
 
 
@@ -245,7 +309,9 @@ def _build_pdf(data: dict) -> bytes:
 
 
 @router.get("/total-work-done/export")
-def export_total_work_done(format: str = "pdf", _: models.User = Depends(get_current_user)):
+def export_total_work_done(
+    format: str = "pdf", db: Session = Depends(get_db), _: models.User = Depends(get_current_user),
+):
     fmt = format.lower()
     if fmt not in EXPORT_FORMATS:
         raise HTTPException(
@@ -254,7 +320,7 @@ def export_total_work_done(format: str = "pdf", _: models.User = Depends(get_cur
         )
     filename = f"Total_Work_Done_{datetime.now().strftime('%Y-%m-%d')}.pdf"
     return Response(
-        _build_pdf(_compute()),
+        _build_pdf(_compute(db)),
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

@@ -18,6 +18,7 @@ from ..workflow import (
 )
 from ..sheet_ingest import ingest_consolidated_excel, looks_like_excel
 from ..email_notify import send_new_transfer_email
+from ..file_naming import with_consolidated_suffix
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 
@@ -350,15 +351,21 @@ async def advance_run(
         contents = await f.read()
         if len(contents) > MAX_UPLOAD_BYTES:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, f"{f.filename} exceeds the maximum upload size")
-        dest = _unique_path(run_dir, Path(f.filename).name)
+        # The consolidated Excel is always stored as "<name>_consolidated.xlsx" — the
+        # Total Work Done dashboard finds each run's workbook by that word. Only the
+        # name changes; the contents are saved exactly as uploaded.
+        filename = f.filename
+        if stage["id"] == "excel_uploaded" and looks_like_excel(filename):
+            filename = with_consolidated_suffix(filename)
+        dest = _unique_path(run_dir, Path(filename).name)
         with open(dest, "wb") as out:
             out.write(contents)
         attachment_id = uuid.uuid4().hex
         db.add(models.Attachment(
-            id=attachment_id, history_entry_id=entry.id, filename=f.filename, stored_path=str(dest),
+            id=attachment_id, history_entry_id=entry.id, filename=filename, stored_path=str(dest),
             size_bytes=len(contents), content_type=f.content_type,
         ))
-        saved.append((f.filename, dest, attachment_id))
+        saved.append((filename, dest, attachment_id))
 
     if stage["id"] == "excel_uploaded":
         excel_file = next((item for item in saved if looks_like_excel(item[0])), None)
