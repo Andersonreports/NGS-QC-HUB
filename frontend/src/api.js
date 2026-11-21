@@ -92,6 +92,9 @@ export const api = {
   markRead: (id) => request(`/api/notifications/${id}/read`, { method: "POST" }),
 
   getSheet: (runNumber) => request(`/api/runs/${encodeURIComponent(runNumber)}/sheet`),
+  useSampleTab: (runNumber) =>
+    request(`/api/runs/${encodeURIComponent(runNumber)}/sheet/use-sample-tab`, { method: "POST" }),
+  getSampleMetrics: (runNumber) => request(`/api/runs/${encodeURIComponent(runNumber)}/sheet/sample-metrics`),
   editSheetCell: (runNumber, payload) =>
     request(`/api/runs/${encodeURIComponent(runNumber)}/sheet/cell`, { method: "PATCH", json: payload }),
   editSheetQC: (runNumber, payload) =>

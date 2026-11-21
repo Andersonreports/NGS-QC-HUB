@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { downloadAttachment, fetchAttachmentBlob } from "../api";
 import RawSheetTable, { parseWorkbookBlob } from "./RawSheetTable";
-import SheetGrid from "./SheetGrid";
+import SamplePreview from "./SamplePreview";
 import { Alert, Icon, Spinner, formatBytes } from "./ui";
 
 function extOf(name = "") {
@@ -120,7 +120,7 @@ export default function FilePreview({ source, role, onClear }) {
 
   return (
     <div className="card h-full flex flex-col overflow-hidden min-h-[24rem]">
-      {state.status !== "live-sheet" && (
+      {(
         <header className="px-4 py-3 border-b border-slate-200 flex items-center gap-2.5 shrink-0">
           <Icon name="file" size={15} className="text-slate-400 shrink-0" />
           <div className="min-w-0 flex-1">
@@ -183,15 +183,7 @@ export default function FilePreview({ source, role, onClear }) {
 
         {state.status === "sheet" && <RawSheetTable sheets={state.sheets} />}
 
-        {state.status === "live-sheet" && (
-          <SheetGrid
-            runNumber={source.runNumber}
-            role={role}
-            fileMeta={meta}
-            onDownload={() => downloadAttachment(source.runNumber, source.attachmentId, source.filename)}
-            onClear={onClear}
-          />
-        )}
+        {state.status === "live-sheet" && <SamplePreview runNumber={source.runNumber} role={role} />}
 
         {state.status === "unsupported" && (
           <div className="h-full overflow-auto p-4">

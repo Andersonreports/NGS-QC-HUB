@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from .. import models, schemas
 from ..database import get_db
 from ..deps import get_current_user
-from ..sheet_ingest import ingest_consolidated_excel, list_sheet_names, looks_like_excel
+from ..sheet_ingest import ingest_consolidated_excel, list_sheet_names, looks_like_excel, read_sample_metrics, _name_key
 from ..workflow import ROLES
 
 router = APIRouter(prefix="/api/runs/{run_number}/sheet", tags=["sheets"])
@@ -206,6 +206,42 @@ def edit_qc(
         _notify_qc_fail(db, sheet, row)
 
     return _sheet_out(sheet, user, db)
+
+
+@router.post("/use-sample-tab", response_model=schemas.SheetOut)
+def use_sample_tab(run_number: str, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    """Point the run's shared sheet back at the workbook's Sample-Info tab. The Preview tab
+    is built on that tab, so any role opening it may restore it (unlike /reingest, which lets
+    the Primary Team pick any tab). Does nothing if it is already the loaded tab."""
+    sheet = _sheet_or_404(db, run_number)
+    attachment = db.get(models.Attachment, sheet.source_attachment_id) if sheet.source_attachment_id else None
+    if not attachment or not Path(attachment.stored_path).is_file():
+        return _sheet_out(sheet, user, db)
+    tab = next((n for n in list_sheet_names(attachment.stored_path) if _name_key(n) == "sampleinfo"), None)
+    if tab and sheet.source_sheet_name != tab:
+        ingest_consolidated_excel(
+            db, db.get(models.Run, sheet.run_id), attachment.stored_path, attachment.filename,
+            sheet_name=tab, attachment_id=attachment.id,
+        )
+        db.commit()
+        db.refresh(sheet)
+    return _sheet_out(sheet, user, db)
+
+
+@router.get("/sample-metrics")
+def get_sample_metrics(run_number: str, db: Session = Depends(get_db), _user: models.User = Depends(get_current_user)):
+    """Per-sample Fastp (before/after) and HS-metrics values read straight from the
+    consolidated workbook's Fastp and HS-metrics tabs, keyed by Sample_ID. Anything the
+    workbook doesn't have comes back empty rather than guessed."""
+    sheet = _sheet_or_404(db, run_number)
+    attachment = db.get(models.Attachment, sheet.source_attachment_id) if sheet.source_attachment_id else None
+    if not attachment or not Path(attachment.stored_path).is_file():
+        return {"fastp": {}, "hs": {}, "hs_metrics": [], "available": False}
+    try:
+        return {**read_sample_metrics(attachment.stored_path), "available": True}
+    except Exception:
+        # Metrics are an add-on to the sample table; never let a malformed tab break it.
+        return {"fastp": {}, "hs": {}, "hs_metrics": [], "available": False}
 
 
 @router.post("/annotations", response_model=schemas.SheetOut)
