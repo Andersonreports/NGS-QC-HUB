@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api } from "../api";
 import { Alert, Icon, Spinner } from "./ui";
@@ -56,10 +56,24 @@ function formatMetric(v) {
   return String(v);
 }
 
+const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+/** Accepts 2026-04-23 (what Excel dates arrive as) or 23/04/2026 (also - or . separated). */
+function parseDate(v) {
+  if (isBlank(v)) return null;
+  const t = String(v).trim();
+  let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return { y: m[1], m: m[2].padStart(2, "0"), d: m[3].padStart(2, "0") };
+  m = t.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})/);
+  if (m) return { y: m[3], m: m[2].padStart(2, "0"), d: m[1].padStart(2, "0") };
+  return null;
+}
+
+/** Shown as DD/MM/YYYY; anything unrecognised is shown as it appears in the file. */
 function formatDate(v) {
   if (isBlank(v)) return null;
-  const m = String(v).match(/^(\d{4}-\d{2}-\d{2})/);
-  return m ? m[1] : String(v);
+  const p = parseDate(v);
+  return p ? `${p.d}/${p.m}/${p.y}` : String(v);
 }
 
 /** Pass = blue, Fail = orange (the app's brand/accent), Yes/No = neutral. */
@@ -96,6 +110,167 @@ function StatusSelect({ value, options, editable, busy, onChange, label }) {
   );
 }
 
+const TH =
+  "sticky top-0 z-10 bg-slate-100 text-left text-[11px] uppercase tracking-wider font-bold text-slate-500 px-4 py-3 border-b border-slate-200 whitespace-nowrap";
+const TD = "px-4 py-3.5 border-b border-slate-100";
+
+const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function Chip({ active, disabled, onClick, children }) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors ${
+        active
+          ? "bg-brand-700 border-brand-700 text-white"
+          : disabled
+            ? "bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed"
+            : "bg-white border-slate-200 text-slate-600 hover:border-brand-300 hover:bg-brand-50"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** One small button that opens a popover with Year and Month chips, instead of two
+ * always-visible dropdowns. The button itself shows the active filter, e.g. "Apr 2026". */
+function FilterMenu({
+  yearOptions, years, onToggleYear, onAllYears, monthOptions, months, onToggleMonth,
+  qcs, onToggleQc, reseqs, onToggleReseq, onClear,
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e) => ref.current && !ref.current.contains(e.target) && setOpen(false);
+    const onKey = (e) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  // Button text: the picks themselves when there are one or two, otherwise a count.
+  const nameOf = (v) => (v === "none" ? "No date" : v);
+  const yearText = years.length === 0 ? "" : years.length <= 2 ? years.map(nameOf).join(", ") : `${years.length} years`;
+  const monthText =
+    months.length === 0 ? "" : months.length <= 2 ? months.map((m) => MONTH_ABBR[Number(m) - 1]).join(", ") : `${months.length} months`;
+  const qcText = qcs.length === 0 ? "" : `QC ${qcs.join("/")}`;
+  const reseqText = reseqs.length === 0 ? "" : `Re-seq ${reseqs.join("/")}`;
+  const parts = [monthText, yearText, qcText, reseqText].filter(Boolean);
+  // Keep the button short: spell the picks out for up to two groups, otherwise count the groups.
+  const summary = parts.length <= 2 ? parts.join(" · ") : `${parts.length} filters`;
+  const active = parts.length > 0;
+  const monthCount = Object.fromEntries(monthOptions.map((o) => [o.value, o.count]));
+
+  return (
+    <div className="relative" ref={ref}>
+      <div
+        className={`inline-flex items-stretch rounded-xl border text-xs font-bold overflow-hidden ${
+          active ? "border-brand-300 bg-brand-50 text-brand-800" : "border-slate-200 bg-white text-slate-600"
+        }`}
+      >
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 hover:bg-black/5 transition-colors"
+        >
+          <Icon name="filter" size={13} />
+          {summary || "Filter"}
+        </button>
+        {active && (
+          <button type="button" onClick={onClear} title="Clear filter" aria-label="Clear filter" className="px-2 hover:bg-black/5 border-l border-brand-200">
+            <Icon name="x" size={12} />
+          </button>
+        )}
+      </div>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-2 z-30 w-72 rounded-xl border border-slate-200 bg-white shadow-xl p-3.5 space-y-3">
+          <div>
+            <div className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1.5">Year <span className="normal-case font-semibold tracking-normal">· pick one or more</span></div>
+            <div className="flex flex-wrap gap-1.5">
+              <Chip active={years.length === 0} onClick={onAllYears}>
+                All
+              </Chip>
+              {yearOptions.map((o) => (
+                <Chip key={o.value} active={years.includes(o.value)} onClick={() => onToggleYear(o.value)}>
+                  {o.label}
+                </Chip>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1.5">Month <span className="normal-case font-semibold tracking-normal">· pick one or more</span></div>
+            <div className="grid grid-cols-4 gap-1.5">
+              {MONTH_ABBR.map((name, idx) => {
+                const value = String(idx + 1).padStart(2, "0");
+                const count = monthCount[value] || 0;
+                return (
+                  <Chip
+                    key={value}
+                    active={months.includes(value)}
+                    disabled={count === 0}
+                    onClick={() => onToggleMonth(value)}
+                  >
+                    {name}
+                  </Chip>
+                );
+              })}
+            </div>
+          </div>
+          <div>
+            <div className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1.5">QC Pass</div>
+            <div className="flex flex-wrap gap-1.5">
+              {QC_OPTIONS.map((v) => (
+                <Chip key={v} active={qcs.includes(v)} onClick={() => onToggleQc(v)}>
+                  {v}
+                </Chip>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1.5">Re-Sequencing</div>
+            <div className="flex flex-wrap gap-1.5">
+              {RESEQ_OPTIONS.map((v) => (
+                <Chip key={v} active={reseqs.includes(v)} onClick={() => onToggleReseq(v)}>
+                  {v}
+                </Chip>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center justify-between pt-2.5 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => {
+                onClear();
+                setOpen(false);
+              }}
+              disabled={!active}
+              className="text-xs font-bold text-slate-500 hover:text-accent-700 disabled:opacity-40 disabled:hover:text-slate-500"
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="text-xs font-bold bg-brand-700 hover:bg-brand-800 text-white rounded-lg px-4 py-1.5 transition-colors"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /**
  * Preview tab for the consolidated Excel: the sample_info table, plus a per-sample popup
  * with Fastp and HS metrics. One `sheet` state feeds both the table and the popup, so a
@@ -109,9 +284,25 @@ export default function SamplePreview({ runNumber, role }) {
   const [saveError, setSaveError] = useState(null);
   const [saving, setSaving] = useState({}); // `${row_index}:${field}` -> true
   const [openRow, setOpenRow] = useState(null);
+  const [expanded, setExpanded] = useState(false); // fill the screen instead of the narrow pane
+
+  useEffect(() => {
+    if (!expanded) return;
+    const onKey = (e) => e.key === "Escape" && openRow === null && setExpanded(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [expanded, openRow]);
+  const [years, setYears] = useState([]); // selected "YYYY" / "none" (no date); empty = every year
+  const [months, setMonths] = useState([]); // selected "01".."12"; empty = every month
+  const [qcs, setQcs] = useState([]); // selected "Pass" / "Fail"; empty = either
+  const [reseqs, setReseqs] = useState([]); // selected "Yes" / "No"; empty = either
 
   useEffect(() => {
     let alive = true;
+    setYears([]);
+    setMonths([]);
+    setQcs([]);
+    setReseqs([]);
     setSheet(null);
     setMetrics(null);
     setError(null);
@@ -176,6 +367,54 @@ export default function SamplePreview({ runNumber, role }) {
     [sheet, runNumber]
   );
 
+  // Year + Month filters, from the sample sheet's Date column. Years offered are the ones
+  // present; months offered are the ones present within the chosen year.
+  const dateCol = colFor("date");
+  const partsOf = useCallback(
+    (row) => {
+      const p = dateCol ? parseDate(row.cells[dateCol]) : null;
+      return p ? { y: p.y, m: p.m } : { y: "none", m: "none" };
+    },
+    [dateCol]
+  );
+  const yearOptions = useMemo(() => {
+    const counts = {};
+    for (const r of sheet?.rows || []) {
+      const y = partsOf(r).y;
+      counts[y] = (counts[y] || 0) + 1;
+    }
+    return Object.keys(counts)
+      .sort((a, b) => (a === "none" ? 1 : b === "none" ? -1 : b.localeCompare(a)))
+      .map((y) => ({ value: y, label: y === "none" ? "No date" : y, count: counts[y] }));
+  }, [sheet?.rows, partsOf]);
+  const activeYears = years.filter((y) => yearOptions.some((o) => o.value === y));
+  const inYear = useMemo(
+    () => (activeYears.length === 0 ? sheet?.rows || [] : (sheet?.rows || []).filter((r) => activeYears.includes(partsOf(r).y))),
+    [sheet?.rows, activeYears, partsOf]
+  );
+  const monthOptions = useMemo(() => {
+    const counts = {};
+    for (const r of inYear) {
+      const m = partsOf(r).m;
+      if (m !== "none") counts[m] = (counts[m] || 0) + 1;
+    }
+    return Object.keys(counts)
+      .sort()
+      .map((m) => ({ value: m, label: MONTH_NAMES[Number(m) - 1] || m, count: counts[m] }));
+  }, [inYear, partsOf]);
+  const activeMonths = months.filter((m) => monthOptions.some((o) => o.value === m));
+  const visibleRows = useMemo(
+    () =>
+      inYear.filter(
+        (r) =>
+          (activeMonths.length === 0 || activeMonths.includes(partsOf(r).m)) &&
+          (qcs.length === 0 || qcs.includes(r.qc_pass)) &&
+          (reseqs.length === 0 || reseqs.includes(r.resequencing))
+      ),
+    [inYear, activeMonths, qcs, reseqs, partsOf]
+  );
+  const filtered = activeYears.length > 0 || activeMonths.length > 0 || qcs.length > 0 || reseqs.length > 0;
+
   if (error) {
     return (
       <div className="h-full overflow-auto p-4">
@@ -195,23 +434,125 @@ export default function SamplePreview({ runNumber, role }) {
   const hasSampleColumns = !!idCol;
   const selected = openRow === null ? null : sheet.rows.find((r) => r.row_index === openRow);
 
+  const stats = {
+    total: visibleRows.length,
+    pass: visibleRows.filter((r) => r.qc_pass === "Pass").length,
+    fail: visibleRows.filter((r) => r.qc_pass === "Fail").length,
+    reseq: visibleRows.filter((r) => r.resequencing === "Yes").length,
+  };
+  // Exports exactly what the table is showing (so the year/month filter applies), with the
+  // same columns, DD/MM/YYYY dates, and the current QC Pass / Re-Sequencing values.
+  const exportExcel = async () => {
+    try {
+      const XLSX = await import("xlsx");
+      const header = [...INFO_COLUMNS.map((c) => c.label), "QC Pass", "Re-Sequencing"];
+      const body = visibleRows.map((row) => [
+        ...INFO_COLUMNS.map((c) => {
+          const col = colFor(c.key);
+          const raw = col ? row.cells[col] : null;
+          return (c.date ? formatDate(raw) : isBlank(raw) ? null : String(raw)) ?? "";
+        }),
+        row.qc_pass,
+        row.resequencing,
+      ]);
+      const ws = XLSX.utils.aoa_to_sheet([header, ...body]);
+      ws["!cols"] = header.map((h, i) => ({
+        wch: Math.min(40, Math.max(h.length, ...body.map((r) => String(r[i] ?? "").length)) + 2),
+      }));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Samples");
+      const tag = [
+        activeYears.map((y) => (y === "none" ? "NoDate" : y)).join("-"),
+        activeMonths.map((m) => MONTH_ABBR[Number(m) - 1]).join("-"),
+        qcs.length ? `QC-${qcs.join("-")}` : "",
+        reseqs.length ? `Reseq-${reseqs.join("-")}` : "",
+      ]
+        .filter(Boolean)
+        .join("_");
+      XLSX.writeFile(wb, `${runNumber}_Samples${tag ? `_${tag}` : ""}.xlsx`);
+    } catch (e) {
+      setSaveError(`Could not export: ${e.message}`);
+    }
+  };
+  const toggle = (list, setList, value) => setList(list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
+  const resetFilters = () => {
+    setYears([]);
+    setMonths([]);
+    setQcs([]);
+    setReseqs([]);
+  };
+
   return (
-    <div className="h-full flex flex-col min-h-0">
-      <div className="px-4 py-3 border-b border-slate-200 bg-gradient-to-r from-brand-50 to-white flex items-center gap-3 flex-wrap shrink-0">
-        <div className="w-8 h-8 rounded-lg bg-brand-700 text-white flex items-center justify-center shrink-0">
-          <Icon name="dna" size={16} />
-        </div>
-        <div className="min-w-0">
-          <div className="text-sm font-bold text-slate-800">Sample information</div>
-          <div className="text-[11px] text-slate-500">
-            {sheet.rows.length} sample{sheet.rows.length === 1 ? "" : "s"} · click a row for Fastp and HS metrics
+    <div className={expanded ? "fixed inset-0 z-40 flex flex-col min-h-0 bg-slate-50" : "h-full flex flex-col min-h-0 bg-slate-50"}>
+      {/* One slim toolbar: title and counts on the left, filters and expand on the right */}
+      <div className="px-4 py-3 bg-white border-b border-slate-200 shrink-0">
+        <div className="flex items-center gap-x-4 gap-y-2 flex-wrap">
+          <div className="min-w-0">
+            <div className="text-sm font-extrabold text-slate-800 leading-tight">Sample information</div>
+            <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-x-3 flex-wrap">
+              <span>{filtered ? `${stats.total} of ${sheet.rows.length}` : stats.total} samples</span>
+              {hasSampleColumns && (
+                <>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-brand-500" />
+                    {stats.pass} Pass
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-accent-500" />
+                    {stats.fail} Fail
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-slate-400" />
+                    {stats.reseq} Re-seq
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="ml-auto flex items-center gap-2 flex-wrap">
+            {hasSampleColumns && (
+              <FilterMenu
+                yearOptions={yearOptions}
+                years={activeYears}
+                onToggleYear={(v) => toggle(years, setYears, v)}
+                onAllYears={() => setYears([])}
+                monthOptions={monthOptions}
+                months={activeMonths}
+                onToggleMonth={(v) => toggle(months, setMonths, v)}
+                qcs={qcs}
+                onToggleQc={(v) => toggle(qcs, setQcs, v)}
+                reseqs={reseqs}
+                onToggleReseq={(v) => toggle(reseqs, setReseqs, v)}
+                onClear={resetFilters}
+              />
+            )}
+            <button
+              onClick={exportExcel}
+              disabled={!hasSampleColumns || visibleRows.length === 0}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 rounded-xl px-3 py-1.5 transition-colors disabled:opacity-45 disabled:cursor-not-allowed"
+              title={filtered ? "Export the filtered samples to Excel" : "Export all samples to Excel"}
+            >
+              <Icon name="download" size={13} />
+              Export
+            </button>
+            <button
+              onClick={() => setExpanded((v) => !v)}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 rounded-xl px-3 py-1.5 transition-colors"
+              title={expanded ? "Back to the page (Esc)" : "Open full screen for more room"}
+            >
+              <Icon name={expanded ? "x" : "panelLeft"} size={13} />
+              {expanded ? "Close" : "Full screen"}
+            </button>
           </div>
         </div>
-        {!canEditQC && <span className="ml-auto text-[11px] text-slate-400">QC Pass / Re-Sequencing are set by the Primary Team Head</span>}
+        {!canEditQC && (
+          <div className="text-[11px] text-slate-400 mt-2">QC Pass / Re-Sequencing are set by the Primary Team Head.</div>
+        )}
       </div>
 
       {saveError && (
-        <div className="px-4 pt-3 shrink-0">
+        <div className="px-5 pt-3 shrink-0">
           <Alert kind="error" onDismiss={() => setSaveError(null)}>
             {saveError}
           </Alert>
@@ -219,85 +560,95 @@ export default function SamplePreview({ runNumber, role }) {
       )}
 
       {!hasSampleColumns ? (
-        <div className="p-4">
+        <div className="p-5">
           <Alert kind="info">
             The sheet is loaded from the “{sheet.source_sheet_name || "unknown"}” tab, which has no Sample_ID column, and this
             workbook has no Sample-Info tab to switch to, so there is no sample table to show.
           </Alert>
         </div>
       ) : (
-        <div className="flex-1 min-h-0 overflow-auto">
-          <table className="w-full text-sm border-separate border-spacing-0">
-            <thead>
-              <tr>
-                {INFO_COLUMNS.map((c) => (
-                  <th
-                    key={c.key}
-                    className="sticky top-0 z-10 bg-slate-50 text-left text-[11px] uppercase tracking-wide font-bold text-slate-500 px-3 py-2.5 border-b border-slate-200 whitespace-nowrap"
-                  >
-                    {c.label}
-                  </th>
-                ))}
-                <th className="sticky top-0 z-10 bg-brand-50 text-left text-[11px] uppercase tracking-wide font-bold text-brand-800 px-3 py-2.5 border-b border-slate-200 whitespace-nowrap">
-                  QC Pass
-                </th>
-                <th className="sticky top-0 z-10 bg-slate-50 text-left text-[11px] uppercase tracking-wide font-bold text-slate-500 px-3 py-2.5 border-b border-slate-200 whitespace-nowrap">
-                  Re-Sequencing
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {sheet.rows.map((row) => (
-                <tr
-                  key={row.row_index}
-                  onClick={() => setOpenRow(row.row_index)}
-                  className="group cursor-pointer hover:bg-brand-50/60 transition-colors"
-                >
-                  {INFO_COLUMNS.map((c) => {
-                    const col = colFor(c.key);
-                    const raw = col ? row.cells[col] : null;
-                    const val = c.date ? formatDate(raw) : isBlank(raw) ? null : String(raw);
-                    return (
-                      <td
-                        key={c.key}
-                        className={`px-3 py-2 border-b border-slate-100 max-w-[16rem] truncate ${c.mono ? "font-mono text-xs text-brand-800" : "text-slate-700"}`}
-                        title={val || ""}
-                      >
-                        {val ?? <span className="text-slate-300">—</span>}
-                      </td>
-                    );
-                  })}
-                  <td className="px-3 py-2 border-b border-slate-100 whitespace-nowrap">
-                    <StatusSelect
-                      label="QC Pass"
-                      value={row.qc_pass}
-                      options={QC_OPTIONS}
-                      editable={canEditQC}
-                      busy={!!saving[`${row.row_index}:qc_pass`]}
-                      onChange={(v) => updateQC(row.row_index, "qc_pass", v)}
-                    />
-                  </td>
-                  <td className="px-3 py-2 border-b border-slate-100 whitespace-nowrap">
-                    <StatusSelect
-                      label="Re-Sequencing"
-                      value={row.resequencing}
-                      options={RESEQ_OPTIONS}
-                      editable={canEditQC}
-                      busy={!!saving[`${row.row_index}:resequencing`]}
-                      onChange={(v) => updateQC(row.row_index, "resequencing", v)}
-                    />
-                  </td>
-                </tr>
-              ))}
-              {sheet.rows.length === 0 && (
+        <div className="flex-1 min-h-0 p-3">
+          <div className="h-full overflow-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+            <table className="w-full min-w-[68rem] text-sm border-separate border-spacing-0">
+              <thead>
                 <tr>
-                  <td colSpan={INFO_COLUMNS.length + 2} className="px-3 py-10 text-center text-slate-400">
-                    No samples found in this workbook.
-                  </td>
+                  {INFO_COLUMNS.map((c) => (
+                    <th key={c.key} className={`${TH} ${c.mono ? "!left-0 !z-20 border-r" : ""}`}>
+                      {c.label}
+                    </th>
+                  ))}
+                  <th className={`${TH} !bg-brand-50 !text-brand-800`}>QC Pass</th>
+                  <th className={TH}>Re-Sequencing</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {visibleRows.map((row, i) => (
+                  <tr
+                    key={row.row_index}
+                    onClick={() => setOpenRow(row.row_index)}
+                    className={`group cursor-pointer transition-colors hover:bg-brand-50 ${
+                      row.qc_pass === "Fail" ? "bg-accent-50/60" : i % 2 ? "bg-slate-50/60" : "bg-white"
+                    }`}
+                  >
+                    {INFO_COLUMNS.map((c) => {
+                      const col = colFor(c.key);
+                      const raw = col ? row.cells[col] : null;
+                      const val = c.date ? formatDate(raw) : isBlank(raw) ? null : String(raw);
+                      let cls = "text-slate-600";
+                      if (c.key === "samplename") cls = "text-slate-900 font-semibold";
+                      return (
+                        <td key={c.key} className={`${TD} max-w-[15rem] truncate ${c.mono ? "sticky left-0 z-10 bg-inherit border-r border-r-slate-200" : cls}`} title={val || ""}>
+                          {val === null ? (
+                            <span className="text-slate-300">—</span>
+                          ) : c.mono ? (
+                            <span className="inline-block font-mono text-xs font-semibold text-brand-800 bg-brand-50 border border-brand-100 rounded-md px-2 py-0.5">
+                              {val}
+                            </span>
+                          ) : (
+                            val
+                          )}
+                        </td>
+                      );
+                    })}
+                    <td className={`${TD} whitespace-nowrap`}>
+                      <StatusSelect
+                        label="QC Pass"
+                        value={row.qc_pass}
+                        options={QC_OPTIONS}
+                        editable={canEditQC}
+                        busy={!!saving[`${row.row_index}:qc_pass`]}
+                        onChange={(v) => updateQC(row.row_index, "qc_pass", v)}
+                      />
+                    </td>
+                    <td className={`${TD} whitespace-nowrap`}>
+                      <StatusSelect
+                        label="Re-Sequencing"
+                        value={row.resequencing}
+                        options={RESEQ_OPTIONS}
+                        editable={canEditQC}
+                        busy={!!saving[`${row.row_index}:resequencing`]}
+                        onChange={(v) => updateQC(row.row_index, "resequencing", v)}
+                      />
+                    </td>
+                  </tr>
+                ))}
+                {visibleRows.length === 0 && (
+                  <tr>
+                    <td colSpan={INFO_COLUMNS.length + 2} className="px-3 py-14 text-center">
+                      <div className="text-sm font-semibold text-slate-500">
+                        {sheet.rows.length === 0 ? "No samples found in this workbook." : "No samples match the selected filters."}
+                      </div>
+                      {filtered && (
+                        <button onClick={resetFilters} className="mt-2 text-xs font-bold text-brand-700 hover:text-brand-900">
+                          Clear filters
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -352,7 +703,7 @@ function MetricTile({ label, value, wide }) {
   );
 }
 
-function SampleModal({ row, colFor, idCol, metrics, canEditQC, saving, onChange, onClose }) {
+export function SampleModal({ row, colFor, idCol, metrics, canEditQC, saving, onChange, onClose, footerNote }) {
   useEffect(() => {
     const onKey = (e) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -513,7 +864,7 @@ function SampleModal({ row, colFor, idCol, metrics, canEditQC, saving, onChange,
 
         <footer className="px-5 py-3 bg-white border-t border-slate-200 flex items-center gap-4 flex-wrap shrink-0">
           {qcControls}
-          {!canEditQC && <span className="text-[11px] text-slate-400">Only the Primary Team Head can change these.</span>}
+          {!canEditQC && <span className="text-[11px] text-slate-400">{footerNote ?? "Only the Primary Team Head can change these."}</span>}
           <button className="btn-ghost ml-auto py-1.5 px-3 text-xs" onClick={onClose}>
             Close
           </button>
