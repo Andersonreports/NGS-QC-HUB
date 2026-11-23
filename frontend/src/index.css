@@ -73,137 +73,51 @@
   animation: fade-up 0.18s ease-out;
 }
 
-/* ---- Dashboard glass styling -------------------------------------------------
-   Scoped to the Dashboard tab: a soft multi-colour backdrop (so the blur has
-   something to show) and translucent "glass" cards on top of it. */
-.dash-bg {
-  border-radius: 1.25rem;
-  padding: 1rem;
-  background:
-    radial-gradient(36rem 22rem at 4% -4%, rgba(59, 130, 246, 0.26), transparent 62%),
-    radial-gradient(32rem 22rem at 98% 2%, rgba(168, 85, 247, 0.2), transparent 62%),
-    radial-gradient(34rem 24rem at 90% 98%, rgba(236, 72, 153, 0.15), transparent 62%),
-    radial-gradient(34rem 24rem at 8% 96%, rgba(20, 184, 166, 0.2), transparent 62%),
-    linear-gradient(180deg, #eef3fb, #f6f8fc);
-}
-@media (min-width: 640px) {
-  .dash-bg {
-    padding: 1.5rem;
-  }
-}
+/* ---- Dashboard cards ---------------------------------------------------------
+   One card style for the whole dashboard: white with a faint wash of its accent, a
+   4px accent edge on the left, a large number in the accent colour. --accent is the
+   number/edge colour, --soft the card wash, --soft2 the icon tile. */
+.tone-blue    { --accent: #1d5fd1; --soft: #f1f6ff; --soft2: #dce8fd; }
+.tone-green   { --accent: #0f8a5f; --soft: #effaf5; --soft2: #d3f0e4; }
+.tone-red     { --accent: #cf3030; --soft: #fff3f3; --soft2: #fbdcdc; }
+.tone-orange  { --accent: #c9560f; --soft: #fff5ec; --soft2: #fde1cc; }
+.tone-violet  { --accent: #6d3fd6; --soft: #f6f2ff; --soft2: #e6dcfc; }
+.tone-teal    { --accent: #0b8579; --soft: #eefaf8; --soft2: #cdefe9; }
+.tone-amber   { --accent: #b07208; --soft: #fff9ea; --soft2: #fbeab9; }
+.tone-pink    { --accent: #c2307a; --soft: #fff2f8; --soft2: #fbd9ea; }
+.tone-slate   { --accent: #475569; --soft: #f4f6f9; --soft2: #e2e8f0; }
+.tone-indigo  { --accent: #4640c8; --soft: #f2f2ff; --soft2: #dfdffb; }
+.tone-sky     { --accent: #0a74ad; --soft: #eff8fe; --soft2: #d1eafa; }
+.tone-fuchsia { --accent: #a62bb4; --soft: #fcf2fd; --soft2: #f3d9f6; }
 
-.glass {
-  background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  border-radius: 1rem;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 10px 28px -14px rgba(15, 23, 42, 0.2);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+.dcard {
+  position: relative;
+  border-radius: 0.9rem;
+  border: 1px solid #e6ebf2;
+  border-left: 4px solid var(--accent);
+  background: linear-gradient(120deg, #ffffff 35%, var(--soft));
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 20px -16px rgba(15, 23, 42, 0.35);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
-@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
-  .glass {
-    background: rgba(255, 255, 255, 0.58);
-    -webkit-backdrop-filter: blur(14px) saturate(150%);
-    backdrop-filter: blur(14px) saturate(150%);
-  }
-}
-.glass-lift:hover {
+.dcard:hover {
   transform: translateY(-2px);
-  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.05), 0 16px 32px -14px rgba(15, 23, 42, 0.26);
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.05), 0 14px 26px -16px rgba(15, 23, 42, 0.4);
+}
+.dnum {
+  color: var(--accent);
+}
+.dicon {
+  color: var(--accent);
+}
+.dtile {
+  color: var(--accent);
+  background: var(--soft2);
 }
 @media (prefers-reduced-motion: reduce) {
-  .glass {
+  .dcard {
     transition: none;
   }
-  .glass-lift:hover {
+  .dcard:hover {
     transform: none;
-  }
-}
-
-@layer components {
-  .btn-glass {
-    @apply btn bg-white/60 text-slate-700 border border-white/80 shadow-sm backdrop-blur
-           hover:bg-white/90 hover:shadow focus:outline-none focus:ring-2 focus:ring-brand-200;
-  }
-}
-
-/* ---- Gradient stat cards ------------------------------------------------------
-   Each card sets a tone (--from / --to / --shadow); the card itself is shared:
-   a deep-but-soft gradient, a glass sheen across the top-left, a hairline light
-   border and a tinted shadow. Deliberately mid-tone rather than bright, so white
-   text stays readable and the page doesn't glare. */
-.tone-blue    { --from: #1d4ed8; --to: #3b82f6; --shadow: rgba(37, 99, 235, 0.55); }
-.tone-violet  { --from: #6d28d9; --to: #8b5cf6; --shadow: rgba(124, 58, 237, 0.55); }
-.tone-teal    { --from: #0f766e; --to: #14b8a6; --shadow: rgba(13, 148, 136, 0.55); }
-.tone-amber   { --from: #b45309; --to: #e08a0b; --shadow: rgba(217, 119, 6, 0.5); }
-.tone-pink    { --from: #be185d; --to: #ec4899; --shadow: rgba(219, 39, 119, 0.5); }
-.tone-green   { --from: #047857; --to: #10b981; --shadow: rgba(5, 150, 105, 0.55); }
-.tone-red     { --from: #b91c1c; --to: #ef4444; --shadow: rgba(220, 38, 38, 0.5); }
-.tone-orange  { --from: #c2410c; --to: #f97316; --shadow: rgba(234, 88, 12, 0.5); }
-.tone-indigo  { --from: #4338ca; --to: #6366f1; --shadow: rgba(79, 70, 229, 0.55); }
-.tone-sky     { --from: #0369a1; --to: #0ea5e9; --shadow: rgba(2, 132, 199, 0.5); }
-.tone-slate   { --from: #334155; --to: #64748b; --shadow: rgba(71, 85, 105, 0.5); }
-.tone-fuchsia { --from: #a21caf; --to: #d946ef; --shadow: rgba(192, 38, 211, 0.5); }
-
-.gcard {
-  position: relative;
-  overflow: hidden;
-  color: #fff;
-  border-radius: 1.1rem;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  background: linear-gradient(135deg, var(--from), var(--to));
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08), 0 14px 26px -14px var(--shadow);
-  transition: transform 0.22s ease, box-shadow 0.22s ease;
-}
-.gcard::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: radial-gradient(120% 90% at 0% 0%, rgba(255, 255, 255, 0.26), transparent 55%);
-}
-.gcard:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.1), 0 20px 34px -14px var(--shadow);
-}
-.gcard > * {
-  position: relative;
-}
-/* Big faint icon in the corner — decoration only. */
-.gcard-mark {
-  position: absolute !important;
-  right: -0.6rem;
-  bottom: -0.9rem;
-  opacity: 0.16;
-  transform: rotate(-10deg);
-  transition: transform 0.3s ease, opacity 0.3s ease;
-  pointer-events: none;
-}
-.gcard:hover .gcard-mark {
-  opacity: 0.24;
-  transform: rotate(-4deg) scale(1.06);
-}
-/* Frosted square the card's own icon sits in. */
-.gcard-icon {
-  background: rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
-}
-/* Small gradient tile used in section headings. */
-.gtile {
-  color: #fff;
-  background: linear-gradient(135deg, var(--from), var(--to));
-  box-shadow: 0 6px 14px -6px var(--shadow);
-}
-@media (prefers-reduced-motion: reduce) {
-  .gcard,
-  .gcard-mark {
-    transition: none;
-  }
-  .gcard:hover {
-    transform: none;
-  }
-  .gcard:hover .gcard-mark {
-    transform: rotate(-10deg);
   }
 }

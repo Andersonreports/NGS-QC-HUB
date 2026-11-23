@@ -1,19 +1,17 @@
 import { useEffect, useState } from "react";
 import { api, downloadTotalWorkDone } from "../api";
+import DashArt from "./DashArt";
 import { Alert, Icon, Spinner } from "./ui";
 
 // Formats the Export menu offers — keep in sync with EXPORT_FORMATS in
 // backend/app/routers/dashboard.py. Add an entry here once the backend supports it.
 const EXPORT_FORMATS = [{ id: "pdf", label: "PDF document" }];
 
-// Every card has its own colour theme (the .tone-* classes in index.css). Green and
-// red are reserved for QC Pass and Fail so those two read at a glance.
-
 /**
- * "Total Work Done": Sample, QC and Report totals across every work folder, computed
- * by the backend from the consolidated Excel files. This component only fetches and
- * displays — no counting happens here. `refreshKey` changes whenever the run list
- * does, so new uploads show up without a page reload.
+ * "Total Work Done": the headline numbers (samples and QC), the sample breakdown by
+ * test type, and the report results. The backend does all the counting from the
+ * approved runs; this component only fetches and displays. `refreshKey` changes
+ * whenever the run list does, so new uploads show up without a page reload.
  */
 export default function TotalWorkDone({ refreshKey }) {
   const [data, setData] = useState(null);
@@ -59,29 +57,24 @@ export default function TotalWorkDone({ refreshKey }) {
   const meta = data?.meta;
 
   return (
-    <section className="space-y-5">
+    <section className="space-y-6">
       <header className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-3 flex-1 min-w-[14rem]">
-          <span className="tone-blue gtile w-11 h-11 rounded-xl flex items-center justify-center shrink-0">
-            <Icon name="activity" size={20} />
-          </span>
-          <div>
-            <h2 className="text-lg font-extrabold leading-tight tracking-tight">Total work done</h2>
-            <p className="text-sm text-slate-500">
-              {meta
-                ? `Across ${meta.files_processed} of ${meta.folders_scanned} work folder${meta.folders_scanned === 1 ? "" : "s"}`
-                : "Samples, QC and reports across all work folders"}
-            </p>
-          </div>
+        <div className="flex-1 min-w-[14rem]">
+          <h2 className="text-xl font-bold tracking-tight text-slate-900">Total work done</h2>
+          <p className="text-sm text-slate-500 mt-0.5">
+            {meta
+              ? `${meta.files_processed} of ${meta.folders_scanned} work folder${meta.folders_scanned === 1 ? "" : "s"} counted`
+              : "Samples and QC across all work folders"}
+          </p>
         </div>
 
         {loading && data && <Spinner className="text-slate-400" />}
-        <button className="btn-glass py-2 px-3.5 text-xs" onClick={() => setReloadTick((t) => t + 1)}>
+        <button className="btn-ghost bg-white py-2 px-3.5 text-xs" onClick={() => setReloadTick((t) => t + 1)}>
           <Icon name="refresh" size={14} /> Refresh
         </button>
         <div className="relative">
           <button
-            className="btn-glass py-2 px-3.5 text-xs"
+            className="btn-ghost bg-white py-2 px-3.5 text-xs"
             disabled={!data || exporting !== null}
             onClick={() => setMenuOpen((o) => !o)}
             aria-haspopup="menu"
@@ -93,21 +86,18 @@ export default function TotalWorkDone({ refreshKey }) {
           {menuOpen && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-              <div className="absolute right-0 mt-2 w-52 glass z-20 p-1.5" role="menu">
-                <p className="px-2.5 pt-1 pb-1.5 text-[0.7rem] font-bold uppercase tracking-wide text-slate-400">
+              <div className="absolute right-0 mt-2 w-48 card shadow-lg z-20 p-1" role="menu">
+                <p className="px-3 pt-2 pb-1 text-[0.7rem] font-semibold uppercase tracking-wide text-slate-400">
                   Export as
                 </p>
                 {EXPORT_FORMATS.map((f) => (
                   <button
                     key={f.id}
                     role="menuitem"
-                    className="w-full text-left px-2.5 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-brand-50 transition-colors flex items-center gap-2.5"
+                    className="w-full text-left px-3 py-2 rounded-md text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2.5"
                     onClick={() => exportAs(f.id)}
                   >
-                    <span className="tone-red gtile w-7 h-7 rounded-lg flex items-center justify-center">
-                      <Icon name="file" size={15} />
-                    </span>
-                    {f.label}
+                    <Icon name="file" size={15} className="text-slate-400" /> {f.label}
                   </button>
                 ))}
               </div>
@@ -120,45 +110,45 @@ export default function TotalWorkDone({ refreshKey }) {
       {exportError && <Alert kind="error" onDismiss={() => setExportError(null)}>{exportError}</Alert>}
 
       {!data && loading ? (
-        <div className="glass p-10 flex items-center justify-center gap-2.5 text-sm text-slate-500">
+        <div className="card p-10 flex items-center justify-center gap-2.5 text-sm text-slate-500">
           <Spinner /> Calculating totals…
         </div>
       ) : data ? (
-        <div className="space-y-7">
-          {/* ---- SAMPLE ---- */}
-          <Group title="Sample" subtitle="Samples by test type" icon="flask" tone="blue" cols="grid-cols-2 md:grid-cols-3 2xl:grid-cols-6">
-            <Stat label="WES" icon="dna" tone="blue" value={s.wes.total} className="col-span-2 md:col-span-1">
-              <ul className="mt-3.5 pt-3 border-t border-white/25 space-y-1.5 text-xs text-white/85">
-                <SubRow label="WES" value={s.wes.wes} />
-                <SubRow label="WES + Mito" value={s.wes.wes_mito} />
-              </ul>
-            </Stat>
-            <Stat label="WGS" icon="layers" tone="violet" value={s.wgs} />
-            <Stat label="Panel" icon="grid" tone="teal" value={s.panel} />
-            <Stat label="Mito" icon="activity" tone="amber" value={s.mito} hint="standalone" />
-            <Stat label="CES" icon="flask" tone="pink" value={s.ces} />
-            <Stat label="Others" icon="moreCircle" tone="slate" value={s.others} hint="other test types" className="col-span-2 md:col-span-1" />
-          </Group>
+        <>
+          {/* ---- headline numbers ---- */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            <BigCard label="Total samples" art="samples" tone="blue" value={s.total} caption="In approved runs" />
+            <BigCard label="QC pass" art="pass" tone="green" value={qc.pass} caption="Samples that passed" />
+            <BigCard label="QC fail" art="fail" tone="red" value={qc.fail} caption="Samples that failed" />
+            <BigCard label="Resequence" art="repeat" tone="orange" value={qc.resequence} caption="Flagged to repeat" />
+          </div>
 
-          {/* ---- QC ---- */}
-          <Group title="QC" subtitle="Quality-control outcomes" icon="shield" tone="green" cols="grid-cols-1 sm:grid-cols-3">
-            <Stat label="Pass" icon="circleCheck" tone="green" value={qc.pass} />
-            <Stat label="Fail" icon="circleX" tone="red" value={qc.fail} />
-            <Stat label="Resequence" icon="repeat" tone="orange" value={qc.resequence} />
-          </Group>
+          {/* ---- samples by test type ---- */}
+          <Block title="Samples by test type">
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+              <SmallCard label="WES" icon="dna" tone="blue" value={s.wes.total} note={`WES ${s.wes.wes} · + Mito ${s.wes.wes_mito}`} />
+              <SmallCard label="WGS" icon="layers" tone="violet" value={s.wgs} />
+              <SmallCard label="Panel" icon="grid" tone="teal" value={s.panel} />
+              <SmallCard label="Mito" icon="activity" tone="amber" value={s.mito} note="Standalone" />
+              <SmallCard label="CES" icon="flask" tone="pink" value={s.ces} />
+              <SmallCard label="Others" icon="moreCircle" tone="slate" value={s.others} />
+            </div>
+          </Block>
 
-          {/* ---- REPORT (placeholders until report results are tracked) ---- */}
-          <Group title="Report" subtitle="Report results" icon="clipboard" tone="violet" cols="grid-cols-1 sm:grid-cols-3">
-            <Stat label="Positive" icon="plusCircle" tone="indigo" value="-" />
-            <Stat label="Negative" icon="minusCircle" tone="sky" value="-" />
-            <Stat label="VUS" icon="helpCircle" tone="fuchsia" value="-" />
-          </Group>
-        </div>
+          {/* ---- report results (not tracked yet) ---- */}
+          <Block title="Report">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <SmallCard label="Positive" icon="plusCircle" tone="indigo" value="-" />
+              <SmallCard label="Negative" icon="minusCircle" tone="sky" value="-" />
+              <SmallCard label="VUS" icon="helpCircle" tone="fuchsia" value="-" />
+            </div>
+          </Block>
+        </>
       ) : null}
 
       {meta?.skipped?.length > 0 && (
-        <details className="glass px-4 py-3 text-xs text-slate-500">
-          <summary className="cursor-pointer select-none font-medium flex items-center gap-2">
+        <details className="text-xs text-slate-500">
+          <summary className="cursor-pointer select-none flex items-center gap-2">
             <Icon name="info" size={14} className="text-slate-400" />
             {meta.skipped.length} folder{meta.skipped.length === 1 ? " was" : "s were"} not counted
           </summary>
@@ -175,49 +165,49 @@ export default function TotalWorkDone({ refreshKey }) {
   );
 }
 
-/** A section heading (icon tile + title) above its row of cards. */
-function Group({ title, subtitle, icon, tone, cols, children }) {
+/** A section label with a hairline running out to the right. */
+function Block({ title, children }) {
   return (
-    <div>
-      <div className="flex items-center gap-3 mb-3.5">
-        <span className={`tone-${tone} gtile w-9 h-9 rounded-xl flex items-center justify-center`}>
-          <Icon name={icon} size={18} />
-        </span>
-        <h3 className="text-base font-extrabold tracking-tight text-slate-800">{title}</h3>
-        <span className="text-xs text-slate-500 hidden sm:inline">{subtitle}</span>
+    <div className="space-y-3">
+      <div className="flex items-center gap-3">
+        <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500">{title}</h3>
+        <span className="h-px flex-1 bg-slate-200" />
       </div>
-      <div className={`grid gap-3 sm:gap-4 ${cols}`}>{children}</div>
-    </div>
-  );
-}
-
-function Stat({ label, icon, tone, value, hint, className = "", children }) {
-  return (
-    <div className={`gcard tone-${tone} p-4 sm:p-5 ${className}`}>
-      <Icon name={icon} size={92} strokeWidth={1.4} className="gcard-mark" />
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-bold uppercase tracking-wider text-white/85">{label}</span>
-        <span className="gcard-icon w-9 h-9 rounded-xl flex items-center justify-center">
-          <Icon name={icon} size={18} />
-        </span>
-      </div>
-      <div className="text-4xl sm:text-5xl font-extrabold mt-2.5 tabular-nums tracking-tight drop-shadow-sm">
-        {value.toLocaleString()}
-      </div>
-      {hint && <div className="text-[0.7rem] font-medium text-white/75 mt-0.5">{hint}</div>}
       {children}
     </div>
   );
 }
 
-function SubRow({ label, value }) {
+/** A headline card: label, large number, short caption, and an illustration. */
+function BigCard({ label, art, tone, value, caption }) {
   return (
-    <li className="flex items-center justify-between gap-2">
-      <span className="flex items-center gap-2">
-        <span className="w-1.5 h-1.5 rounded-full bg-white/80" />
-        {label}
+    <div className={`dcard tone-${tone} px-5 py-5 flex items-center justify-between gap-4`}>
+      <div className="min-w-0">
+        <div className="text-sm font-semibold text-slate-700">{label}</div>
+        <div className="dnum text-5xl font-extrabold mt-1 tabular-nums tracking-tight leading-none">
+          {value.toLocaleString()}
+        </div>
+        <div className="text-xs text-slate-500 mt-2.5">{caption}</div>
+      </div>
+      <DashArt name={art} size={68} className="dicon shrink-0" />
+    </div>
+  );
+}
+
+/** A compact card for one category. */
+function SmallCard({ label, icon, tone, value, note }) {
+  return (
+    <div className={`dcard tone-${tone} p-4 flex items-start justify-between gap-3`}>
+      <div className="min-w-0">
+        <div className="text-sm font-semibold text-slate-700">{label}</div>
+        <div className="dnum text-3xl font-bold mt-0.5 tabular-nums tracking-tight leading-tight">
+          {value.toLocaleString()}
+        </div>
+        {note && <div className="text-[0.7rem] leading-snug text-slate-500 mt-1">{note}</div>}
+      </div>
+      <span className="dtile w-10 h-10 rounded-xl flex items-center justify-center shrink-0">
+        <Icon name={icon} size={20} strokeWidth={1.7} />
       </span>
-      <span className="font-bold tabular-nums text-white">{value.toLocaleString()}</span>
-    </li>
+    </div>
   );
 }

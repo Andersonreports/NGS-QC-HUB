@@ -237,7 +237,9 @@ def _compute(db: Session) -> dict:
         gen_ids.extend(file_gen_ids)
 
     return {
-        "sample": _count_samples(tests),
+        # "total" is every sample with a test type, counted once — not the sum of the cards,
+        # which can overlap when one test name matches two categories.
+        "sample": {**_count_samples(tests), "total": len(tests)},
         "qc": {
             # Pass / Fail are the Primary Team Head's own per-sample QC decisions from the
             # My Work sheet, so they follow every change the head makes there.
@@ -267,6 +269,7 @@ def _build_pdf(data: dict) -> bytes:
     s, qc, meta = data["sample"], data["qc"], data["meta"]
     sections = [
         ("Sample", [
+            ("Total samples", s["total"], True),
             ("WES (total)", s["wes"]["total"], True),
             ("WES", s["wes"]["wes"], False),
             ("WES + Mito", s["wes"]["wes_mito"], False),
