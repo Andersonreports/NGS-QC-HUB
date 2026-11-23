@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse
 from .database import Base, engine
 from .migrations import run_migrations
 from .routers import auth, runs, notifications, admin, sheets, reports, dashboard
-from .seed import seed_default_accounts, sync_seed_display_names
+from .seed import seed_default_accounts, sync_seed_display_names, ensure_admin_account
 from .database import SessionLocal
 from .file_naming import rename_existing_consolidated_files
 
@@ -16,6 +16,7 @@ Base.metadata.create_all(bind=engine)
 run_migrations(engine)
 seed_default_accounts()
 sync_seed_display_names()
+ensure_admin_account()
 
 # Files uploaded before the "_consolidated" naming rule existed get renamed once.
 _db = SessionLocal()

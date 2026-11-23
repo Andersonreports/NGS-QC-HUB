@@ -7,11 +7,11 @@ from .. import models, schemas
 from ..database import get_db
 from ..deps import require_role
 from ..security import hash_password
-from ..workflow import ROLES
+from ..workflow import ROLES, ADMIN_ROLE
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
-ALL_ROLES = ROLES
+ALL_ROLES = [*ROLES, ADMIN_ROLE]
 
 
 @router.get("/users", response_model=List[schemas.UserOut])

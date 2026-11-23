@@ -15,6 +15,7 @@ def login(payload: schemas.LoginRequest, db: Session = Depends(get_db)):
     if not user or not user.is_active or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Incorrect username or password")
     token = create_access_token(user.id)
+    user.real_role = user.role
     return schemas.TokenResponse(access_token=token, user=schemas.UserOut.model_validate(user))
 
 

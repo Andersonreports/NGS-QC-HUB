@@ -1,5 +1,6 @@
 const TOKEN_KEY = "ngsqc_token";
 const USER_KEY = "ngsqc_user";
+const ACTING_ROLE_KEY = "ngsqc_acting_role";
 
 // Same-origin in production (FastAPI serves the built frontend); Vite dev proxies /api.
 const BASE = "";
@@ -21,6 +22,35 @@ export function setSession(token, user) {
 export function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  localStorage.removeItem(ACTING_ROLE_KEY);
+}
+
+// The role an admin is currently acting as. Sent on every request as X-Act-As-Role;
+// the backend only honours it for an admin account, so it's harmless for anyone else.
+export function getActingRole() {
+  try {
+    return localStorage.getItem(ACTING_ROLE_KEY);
+  } catch {
+    return null;
+  }
+}
+export function setActingRole(role) {
+  try {
+    if (role) localStorage.setItem(ACTING_ROLE_KEY, role);
+    else localStorage.removeItem(ACTING_ROLE_KEY);
+  } catch {
+    /* ignore storage errors */
+  }
+}
+
+/** Authorization + act-as headers for raw fetch() calls (file downloads, previews). */
+export function authHeaders() {
+  const headers = {};
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const actingRole = getActingRole();
+  if (actingRole) headers["X-Act-As-Role"] = actingRole;
+  return headers;
 }
 
 async function request(path, { method = "GET", json, form, auth = true } = {}) {
@@ -28,6 +58,8 @@ async function request(path, { method = "GET", json, form, auth = true } = {}) {
   if (auth) {
     const token = getToken();
     if (token) headers.Authorization = `Bearer ${token}`;
+    const actingRole = getActingRole();
+    if (actingRole) headers["X-Act-As-Role"] = actingRole;
   }
   let body;
   if (json !== undefined) {
@@ -145,7 +177,7 @@ export const api = {
 /** Fetch an attachment's bytes (auth header included) for inline previewing. */
 export async function fetchAttachmentBlob(runNumber, attachmentId) {
   const res = await fetch(api.attachmentUrl(runNumber, attachmentId), {
-    headers: { Authorization: `Bearer ${getToken()}` },
+    headers: authHeaders(),
   });
   if (!res.ok) throw new Error("Could not load that file for preview.");
   return res.blob();
@@ -154,7 +186,7 @@ export async function fetchAttachmentBlob(runNumber, attachmentId) {
 /** Download the current edited state of the consolidated Excel as a fresh .xlsx. */
 export async function downloadSheetExport(runNumber) {
   const res = await fetch(api.sheetExportUrl(runNumber), {
-    headers: { Authorization: `Bearer ${getToken()}` },
+    headers: authHeaders(),
   });
   if (!res.ok) throw new Error("Could not export the sheet.");
   const blob = await res.blob();
@@ -171,7 +203,7 @@ export async function downloadSheetExport(runNumber) {
 /** Download the month's consolidated table as a fresh .xlsx. */
 export async function downloadMonthlyReport(year, month) {
   const res = await fetch(api.monthlyReportExportUrl(year, month), {
-    headers: { Authorization: `Bearer ${getToken()}` },
+    headers: authHeaders(),
   });
   if (!res.ok) throw new Error("Could not export that month's report.");
   const blob = await res.blob();
@@ -189,7 +221,7 @@ export async function downloadMonthlyReport(year, month) {
 /** Download the Total Work Done summary in the given format (currently "pdf"). */
 export async function downloadTotalWorkDone(format, period) {
   const res = await fetch(api.totalWorkDoneExportUrl(format, period), {
-    headers: { Authorization: `Bearer ${getToken()}` },
+    headers: authHeaders(),
   });
   if (!res.ok) throw new Error("Could not export the totals.");
   const blob = await res.blob();
@@ -206,7 +238,7 @@ export async function downloadTotalWorkDone(format, period) {
 /** Download an attachment through fetch so the Authorization header is sent. */
 export async function downloadAttachment(runNumber, attachmentId, filename) {
   const res = await fetch(api.attachmentUrl(runNumber, attachmentId), {
-    headers: { Authorization: `Bearer ${getToken()}` },
+    headers: authHeaders(),
   });
   if (!res.ok) throw new Error("Could not download that file.");
   const blob = await res.blob();

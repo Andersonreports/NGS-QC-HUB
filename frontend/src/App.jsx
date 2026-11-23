@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, clearSession, getStoredUser, getToken } from "./api";
+import { api, clearSession, getStoredUser, getToken, getActingRole, setActingRole } from "./api";
 import { isAwaiting } from "./workflow";
 import AdminUsers from "./components/AdminUsers";
 import Dashboard from "./components/Dashboard";
@@ -22,12 +22,32 @@ const POLL_MS = 10000;
  * straight to the work queue, where it starts new transfers. */
 const OVERVIEW_ROLES = ["primary_team", "primary_head", "bioinfo_head"];
 
+// The role an admin acts as by default when they first sign in.
+const DEFAULT_ACTING_ROLE = "wetlab";
+
+/** True for an admin account — the only one that gets the role switcher. The real
+ * role is "admin"; `role` may be a role it is currently acting as. */
+function isAdminUser(u) {
+  return !!u && (u.real_role === "admin" || u.role === "admin");
+}
+
 function defaultTabFor(user) {
   return user && OVERVIEW_ROLES.includes(user.role) ? "overview" : "work";
 }
 
 export default function App() {
   const [user, setUser] = useState(() => (getToken() ? getStoredUser() : null));
+  // The role an admin is currently acting as. Seeded into localStorage on init so the
+  // first API call already sends the X-Act-As-Role header; a no-op for non-admins.
+  const [actingRole, setActingRoleState] = useState(() => {
+    const u = getToken() ? getStoredUser() : null;
+    let role = getActingRole();
+    if (isAdminUser(u) && !role) {
+      role = DEFAULT_ACTING_ROLE;
+      setActingRole(role);
+    }
+    return role || DEFAULT_ACTING_ROLE;
+  });
   const [runs, setRuns] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [toasts, setToasts] = useState([]);
@@ -112,10 +132,23 @@ export default function App() {
   function logout() {
     clearSession();
     seenNotifications.current = null;
+    setActingRoleState(DEFAULT_ACTING_ROLE);
     setUser(null);
     setRuns([]);
     setNotifications([]);
     setToasts([]);
+  }
+
+  // Admin only: switch the role being acted as. Persists the choice (so the header
+  // follows on every request), resets the notification baseline and view, moves to
+  // that role's default tab, and reloads the run/notification lists for the new role.
+  function changeActingRole(role) {
+    setActingRole(role);
+    setActingRoleState(role);
+    seenNotifications.current = null;
+    setViewingRun(null);
+    setTab(defaultTabFor({ role }));
+    setRefreshKey((k) => k + 1);
   }
 
   // Publish the page header's height for the sticky preview panes below, instead
@@ -144,28 +177,48 @@ export default function App() {
       <Login
         onLoggedIn={(u) => {
           seenNotifications.current = null;
-          setUser(u);
-          setTab(defaultTabFor(u));
+          // For an admin, start acting as the default role and remember it before the
+          // first data load, so the role switcher and the X-Act-As-Role header agree.
+          if (isAdminUser(u)) {
+            const role = getActingRole() || DEFAULT_ACTING_ROLE;
+            setActingRole(role);
+            setActingRoleState(role);
+            setUser(u);
+            setTab(defaultTabFor({ role }));
+          } else {
+            setUser(u);
+            setTab(defaultTabFor(u));
+          }
         }}
       />
     );
   }
 
-  const pendingCount = runs.filter((r) => isAwaiting(r, user.role)).length;
+  // Everything below renders for the *effective* role: for an admin that's the role
+  // they're acting as, for everyone else their own role. Because the whole app keys
+  // off `user.role`, swapping in the acting role here (and sending the matching
+  // header from the API layer) makes every screen and action behave as that role.
+  const isAdmin = isAdminUser(user);
+  const effUser = isAdmin ? { ...user, role: actingRole } : user;
+
+  const pendingCount = runs.filter((r) => isAwaiting(r, effUser.role)).length;
   // "Uploads & preview" was dropped — My work's own search already finds a run and
   // opens the same files/preview/status view, so a second screen for that was just
   // a duplicate. There's no separate admin account — Primary Team Head manages
   // team logins directly.
   const tabs = [
-    ...(OVERVIEW_ROLES.includes(user.role) ? [{ id: "overview", label: "Dashboard", icon: "flask" }] : []),
+    ...(OVERVIEW_ROLES.includes(effUser.role) ? [{ id: "overview", label: "Dashboard", icon: "flask" }] : []),
     { id: "work", label: "My work", badge: pendingCount, icon: "clock" },
     { id: "monthly", label: "Monthly Report", icon: "file" },
-    ...(user.role === "primary_head" ? [{ id: "admin", label: "User Management", icon: "users" }] : []),
+    ...(effUser.role === "primary_head" ? [{ id: "admin", label: "User Management", icon: "users" }] : []),
   ];
   return (
     <div className="min-h-screen">
       <TopBar
-        user={user}
+        user={effUser}
+        isAdmin={isAdmin}
+        actingRole={actingRole}
+        onActingRole={changeActingRole}
         tabs={tabs}
         activeTab={tab}
         onTab={(id) => {
@@ -192,24 +245,24 @@ export default function App() {
         {viewingRun ? (
           <RunHistory
             runNumber={viewingRun}
-            user={user}
+            user={effUser}
             refreshKey={refreshKey}
             onBack={() => setViewingRun(null)}
             onChanged={() => afterChange("The run has moved to the next step.")}
             onSilentChange={() => afterChange()}
           />
-        ) : tab === "overview" && OVERVIEW_ROLES.includes(user.role) ? (
-          <Overview user={user} runs={runs} />
+        ) : tab === "overview" && OVERVIEW_ROLES.includes(effUser.role) ? (
+          <Overview user={effUser} runs={runs} />
         ) : tab === "work" ? (
           <WorkView
-            user={user}
+            user={effUser}
             runs={runs}
             onViewRun={setViewingRun}
             onChanged={afterChange}
             pushToast={pushToast}
           />
         ) : tab === "monthly" ? (
-          <MonthlyReport user={user} onViewRun={setViewingRun} />
+          <MonthlyReport user={effUser} onViewRun={setViewingRun} />
         ) : (
           <AdminUsers />
         )}

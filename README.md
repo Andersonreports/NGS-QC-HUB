@@ -27,19 +27,22 @@ sudo ufw allow 8000/tcp
 
 ## Logins
 
-Change these passwords after the first sign-in (or replace the accounts from the **Accounts**
-tab as `admin`).
+Change these passwords after the first sign-in (or replace the accounts from the
+**User Management** tab while acting as the Primary Team Head).
 
-| Username  | Password      | Role                                            |
-| --------- | ------------- | ----------------------------------------------- |
-| `wetlab`  | `wetlab@123`  | Wet Lab — records transfers, QC + final approval |
-| `primary` | `primary@123` | Primary Team — uploads CSV/Excel/PDF            |
-| `phead`   | `phead@123`   | Primary Team Head — approves the Excel          |
-| `bhead`   | `bhead@123`   | Bioinfo Team Head — approves the Excel          |
-| `admin`   | `admin@123`   | Administrator — creates/disables accounts only  |
+| Username          | Password            | Role                                             |
+| ----------------- | ------------------- | ------------------------------------------------ |
+| `wetlab`          | `wetlab@123`        | Wet Lab — records transfers, reviews documents   |
+| `sethu`           | `sethu@123`         | Primary Team — uploads CSV/Excel/PDF             |
+| `tamilarasu`      | `tamilarasu@123`    | Primary Team Head — approves the Excel/PDF       |
+| `dr.muthukumaran` | `muthukumaran@123`  | Bioinfo Team Head — approves the Excel/PDF       |
+| `admin`           | `admin@123`         | Admin — can act as any of the four roles above   |
 
-Sign in as `admin` → **Accounts** tab to give each team member their own login. Their role
-decides which steps they're allowed to act on.
+The **admin** account is a testing/administration login: after signing in it shows a
+role switcher ("Admin · testing as …") in the header, and every screen, tab and action
+behaves as the selected role — so one login can walk a run through the whole pipeline
+without logging out and back in. Each team member should still get their own role login
+for day-to-day use; a role decides which steps they're allowed to act on.
 
 ## The workflow
 

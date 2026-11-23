@@ -15,6 +15,9 @@ class UserOut(BaseModel):
     username: str
     full_name: str
     role: str
+    # The account's true role. For an admin acting as another role this stays "admin"
+    # while `role` is the role being acted as; for everyone else it equals `role`.
+    real_role: Optional[str] = None
     is_active: bool = True
 
 

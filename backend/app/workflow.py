@@ -28,6 +28,15 @@ ROLES = ["wetlab", "primary_team", "primary_head", "bioinfo_head"]
 # The two roles that can resolve a head-review step — either one is enough.
 HEAD_ROLES = ["primary_head", "bioinfo_head"]
 
+# A built-in super-role, purely for testing/administration: an "admin" account can
+# act as any of the four pipeline roles, chosen per-request via the X-Act-As-Role
+# header (see deps.get_current_user), so one login can exercise every role's screens
+# and actions without logging out and back in. "admin" is deliberately NOT a member
+# of ROLES — ROLES drives per-role iteration (notification fan-out, per-role counts)
+# that an admin has no part in; it only ever stands in for one of these roles.
+ADMIN_ROLE = "admin"
+IMPERSONATABLE_ROLES = ROLES  # the roles an admin may act as
+
 STAGES = [
     {"id": "raw_data_placed", "step": "1", "role": "wetlab",
      "title": "Raw data on common drive",

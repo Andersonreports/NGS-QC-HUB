@@ -8,7 +8,19 @@ import { Icon, timeAgo } from "./ui";
  *   white tab bar   — navigation, centred
  *   (page content on the slate background below)
  */
-export default function TopBar({ user, tabs, activeTab, onTab, notifications, onMarkAllRead, onOpenRun, onLogout }) {
+export default function TopBar({
+  user,
+  isAdmin = false,
+  actingRole,
+  onActingRole,
+  tabs,
+  activeTab,
+  onTab,
+  notifications,
+  onMarkAllRead,
+  onOpenRun,
+  onLogout,
+}) {
   const [bellOpen, setBellOpen] = useState(false);
   const bellRef = useRef(null);
   const unread = notifications.filter((n) => !n.read).length;
@@ -137,6 +149,36 @@ export default function TopBar({ user, tabs, activeTab, onTab, notifications, on
           </div>
         </div>
       </div>
+
+      {/* ---------- admin role switcher ---------- */}
+      {isAdmin && (
+        <div className="bg-brand-800 text-white border-b border-white/10">
+          <div className="w-full px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-center gap-2 flex-wrap">
+            <span className="inline-flex items-center gap-1.5 text-[10.5px] font-extrabold uppercase tracking-wide text-accent-200 mr-1">
+              <Icon name="users" size={13} /> Admin · testing as
+            </span>
+            {Object.keys(ROLES).map((rid) => {
+              const r = ROLES[rid];
+              const active = actingRole === rid;
+              return (
+                <button
+                  key={rid}
+                  onClick={() => onActingRole(rid)}
+                  aria-pressed={active}
+                  className={`px-3 py-1 rounded-full text-xs font-bold border transition-colors ${
+                    active
+                      ? "border-transparent text-white shadow-sm"
+                      : "border-white/20 text-brand-100 hover:bg-white/10"
+                  }`}
+                  style={active ? { background: r.color } : undefined}
+                >
+                  {r.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ---------- tab bar (skipped when a role has only one screen) ---------- */}
       {tabs.length > 1 && (
