@@ -61,6 +61,15 @@ async function request(path, { method = "GET", json, form, auth = true } = {}) {
   return res.json();
 }
 
+/** "?a=1&year=2026&month=04" from fixed params plus an optional { year, month } period. */
+function periodQuery(period, fixed = {}) {
+  const params = new URLSearchParams(fixed);
+  if (period?.year && period.year !== "all") params.set("year", period.year);
+  if (period?.month && period.month !== "all") params.set("month", period.month);
+  const q = params.toString();
+  return q ? `?${q}` : "";
+}
+
 export const api = {
   login: (username, password) =>
     request("/api/auth/login", { method: "POST", json: { username, password }, auth: false }),
@@ -107,8 +116,13 @@ export const api = {
     request(`/api/runs/${encodeURIComponent(runNumber)}/sheet/reingest`, { method: "POST", json: { sheet_name: sheetName } }),
   sheetExportUrl: (runNumber) => `${BASE}/api/runs/${encodeURIComponent(runNumber)}/sheet/export.xlsx`,
 
-  getTotalWorkDone: () => request("/api/dashboard/total-work-done"),
-  totalWorkDoneExportUrl: (format) => `${BASE}/api/dashboard/total-work-done/export?format=${format}`,
+  // `period` is { year, month } (both optional, "all"/empty = no filter) — the dashboard's
+  // month filter, applied to the sample's own Date on the server.
+  getTotalWorkDone: (period) => request(`/api/dashboard/total-work-done${periodQuery(period)}`),
+  getTotalWorkDoneSamples: (category, period) =>
+    request(`/api/dashboard/total-work-done/samples${periodQuery(period, { category })}`),
+  totalWorkDoneExportUrl: (format, period) =>
+    `${BASE}/api/dashboard/total-work-done/export${periodQuery(period, { format })}`,
 
   getMonthlyReport: (year, month) => request(`/api/reports/monthly?year=${year}&month=${month}`),
   editMonthlyReportCell: (runNumber, field, value) =>
@@ -166,8 +180,8 @@ export async function downloadMonthlyReport(year, month) {
 }
 
 /** Download the Total Work Done summary in the given format (currently "pdf"). */
-export async function downloadTotalWorkDone(format) {
-  const res = await fetch(api.totalWorkDoneExportUrl(format), {
+export async function downloadTotalWorkDone(format, period) {
+  const res = await fetch(api.totalWorkDoneExportUrl(format, period), {
     headers: { Authorization: `Bearer ${getToken()}` },
   });
   if (!res.ok) throw new Error("Could not export the totals.");

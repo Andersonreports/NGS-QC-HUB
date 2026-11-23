@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { api, downloadTotalWorkDone } from "../api";
 import DashArt from "./DashArt";
+import PeriodFilter, { periodLabel } from "./PeriodFilter";
+import SampleListDialog from "./SampleListDialog";
 import { Alert, Icon, Spinner } from "./ui";
 
 // Formats the Export menu offers — keep in sync with EXPORT_FORMATS in
@@ -21,13 +23,15 @@ export default function TotalWorkDone({ refreshKey }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [exporting, setExporting] = useState(null);
   const [exportError, setExportError] = useState(null);
+  const [listing, setListing] = useState(null); // which headline card's samples are open
+  const [period, setPeriod] = useState({ year: "all", month: "all" }); // month/year filter
 
   async function exportAs(format) {
     setMenuOpen(false);
     setExporting(format);
     setExportError(null);
     try {
-      await downloadTotalWorkDone(format);
+      await downloadTotalWorkDone(format, period);
     } catch (e) {
       setExportError(e.message);
     } finally {
@@ -39,7 +43,7 @@ export default function TotalWorkDone({ refreshKey }) {
     let alive = true;
     setLoading(true);
     api
-      .getTotalWorkDone()
+      .getTotalWorkDone(period)
       .then((d) => {
         if (!alive) return;
         setData(d);
@@ -50,7 +54,7 @@ export default function TotalWorkDone({ refreshKey }) {
     return () => {
       alive = false;
     };
-  }, [refreshKey, reloadTick]);
+  }, [refreshKey, reloadTick, period]);
 
   const s = data?.sample;
   const qc = data?.qc;
@@ -65,10 +69,21 @@ export default function TotalWorkDone({ refreshKey }) {
             {meta
               ? `${meta.files_processed} of ${meta.folders_scanned} work folder${meta.folders_scanned === 1 ? "" : "s"} counted`
               : "Samples and QC across all work folders"}
+            {periodLabel(period.year, period.month) && (
+              <span className="text-brand-700 font-medium"> · {periodLabel(period.year, period.month)}</span>
+            )}
           </p>
         </div>
 
         {loading && data && <Spinner className="text-slate-400" />}
+        {(data?.meta?.periods?.length > 0 || period.year !== "all" || period.month !== "all") && (
+          <PeriodFilter
+            periods={data?.meta?.periods ?? []}
+            year={period.year}
+            month={period.month}
+            onChange={setPeriod}
+          />
+        )}
         <button className="btn-ghost bg-white py-2 px-3.5 text-xs" onClick={() => setReloadTick((t) => t + 1)}>
           <Icon name="refresh" size={14} /> Refresh
         </button>
@@ -117,10 +132,10 @@ export default function TotalWorkDone({ refreshKey }) {
         <>
           {/* ---- headline numbers ---- */}
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-            <BigCard label="Total samples" art="samples" tone="blue" value={s.total} caption="In approved runs" />
-            <BigCard label="QC pass" art="pass" tone="green" value={qc.pass} caption="Samples that passed" />
-            <BigCard label="QC fail" art="fail" tone="red" value={qc.fail} caption="Samples that failed" />
-            <BigCard label="Resequence" art="repeat" tone="orange" value={qc.resequence} caption="Flagged to repeat" />
+            <BigCard label="Total samples" art="samples" tone="blue" value={s.total} caption="In approved runs" onOpen={() => setListing({ category: "total", title: "Total samples", tone: "blue" })} />
+            <BigCard label="QC pass" art="pass" tone="green" value={qc.pass} caption="Samples that passed" onOpen={() => setListing({ category: "pass", title: "QC pass", tone: "green" })} />
+            <BigCard label="QC fail" art="fail" tone="red" value={qc.fail} caption="Samples that failed" onOpen={() => setListing({ category: "fail", title: "QC fail", tone: "red" })} />
+            <BigCard label="Resequence" art="repeat" tone="orange" value={qc.resequence} caption="Flagged to repeat" onOpen={() => setListing({ category: "resequence", title: "Resequence", tone: "orange" })} />
           </div>
 
           {/* ---- samples by test type ---- */}
@@ -145,6 +160,16 @@ export default function TotalWorkDone({ refreshKey }) {
           </Block>
         </>
       ) : null}
+
+      {listing && (
+        <SampleListDialog
+          category={listing.category}
+          period={period}
+          title={listing.title}
+          tone={listing.tone}
+          onClose={() => setListing(null)}
+        />
+      )}
 
       {meta?.skipped?.length > 0 && (
         <details className="text-xs text-slate-500">
@@ -178,19 +203,28 @@ function Block({ title, children }) {
   );
 }
 
-/** A headline card: label, large number, short caption, and an illustration. */
-function BigCard({ label, art, tone, value, caption }) {
+/** A headline card: label, large number, short caption, and an illustration. Clicking
+ * it opens the list of samples behind the number. */
+function BigCard({ label, art, tone, value, caption, onOpen }) {
   return (
-    <div className={`dcard tone-${tone} px-5 py-5 flex items-center justify-between gap-4`}>
+    <button
+      type="button"
+      onClick={onOpen}
+      title={`Show the ${label.toLowerCase()} samples`}
+      className={`dcard tone-${tone} group w-full text-left cursor-pointer px-5 py-5 flex items-center justify-between gap-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-slate-400`}
+    >
       <div className="min-w-0">
         <div className="text-sm font-semibold text-slate-700">{label}</div>
         <div className="dnum text-5xl font-extrabold mt-1 tabular-nums tracking-tight leading-none">
           {value.toLocaleString()}
         </div>
-        <div className="text-xs text-slate-500 mt-2.5">{caption}</div>
+        <div className="text-xs text-slate-500 mt-2.5 flex items-center gap-1">
+          {caption}
+          <Icon name="chevronRight" size={13} className="dicon opacity-60 transition-transform group-hover:translate-x-0.5" />
+        </div>
       </div>
       <DashArt name={art} size={68} className="dicon shrink-0" />
-    </div>
+    </button>
   );
 }
 
