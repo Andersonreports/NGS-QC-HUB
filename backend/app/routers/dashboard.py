@@ -16,6 +16,7 @@ from pathlib import Path
 import openpyxl
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fpdf import FPDF
+from fpdf.fonts import FontFace
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
@@ -455,18 +456,15 @@ def _qc_rows(
     return out
 
 
-@router.get("/total-work-done/samples")
-def total_work_done_samples(
-    category: str, year: str | None = None, month: str | None = None,
-    db: Session = Depends(get_db), _: models.User = Depends(get_current_user),
-):
-    """The samples behind one of the headline numbers. Uses the same approved runs and
-    the same rules as the counts, so the list length always equals the card's number."""
+def _sample_items(
+    db: Session, category: str, year: str | None, month: str | None,
+) -> tuple[str, list[dict]]:
+    """(label, samples) behind one of the headline numbers. Uses the same approved runs
+    and the same rules as the counts, so the list length always equals the card's number."""
     if category not in SAMPLE_LIST_LABELS:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST, f"category must be one of: {', '.join(SAMPLE_LIST_LABELS)}",
         )
-    year, month = _check_period(year, month)
     scan = _scan(db)
     if category in ("pass", "fail"):
         items = _qc_rows(db, scan["processed"], "Pass" if category == "pass" else "Fail", year, month)
@@ -481,7 +479,17 @@ def total_work_done_samples(
             for s in scan["samples"]
             if pick(s) and _in_period(s["year"], s["month"], year, month)
         ]
-    return {"category": category, "label": SAMPLE_LIST_LABELS[category], "count": len(items), "samples": items}
+    return SAMPLE_LIST_LABELS[category], items
+
+
+@router.get("/total-work-done/samples")
+def total_work_done_samples(
+    category: str, year: str | None = None, month: str | None = None,
+    db: Session = Depends(get_db), _: models.User = Depends(get_current_user),
+):
+    year, month = _check_period(year, month)
+    label, items = _sample_items(db, category, year, month)
+    return {"category": category, "label": label, "count": len(items), "samples": items}
 
 
 # Formats the export button offers. Add a new one by writing a builder and listing it here.
@@ -574,6 +582,112 @@ def export_total_work_done(
     filename = f"Total_Work_Done_{datetime.now().strftime('%Y-%m-%d')}.pdf"
     return Response(
         _build_pdf(_compute(db, year, month)),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+def _item_matches(item: dict, q: str) -> bool:
+    """The dialog's search box: any of these fields contains the text (any case)."""
+    q = q.strip().lower()
+    return not q or any(
+        q in str(item.get(f) or "").lower()
+        for f in ("run", "sample_id", "sample_name", "description", "gen_id", "test")
+    )
+
+
+def _pdf_text(value) -> str:
+    """The built-in PDF fonts only cover Latin-1, so anything else becomes '?' instead
+    of failing the whole export."""
+    text = str(value) if value not in (None, "") else "-"
+    return text.encode("latin-1", "replace").decode("latin-1")
+
+
+class _ListPDF(FPDF):
+    def footer(self):
+        self.set_y(-10)
+        self.set_font("Helvetica", "", 7)
+        self.set_text_color(130, 130, 130)
+        self.cell(0, 5, f"Page {self.page_no()} of {{nb}}", align="C")
+
+
+def _build_sample_list_pdf(label: str, items: list[dict], period: str, q: str) -> bytes:
+    """A landscape table of the samples behind one dashboard card — the same rows the
+    dialog shows."""
+    show_qc = any(i.get("qc") for i in items)
+    # Widths add up to the page's 277 mm either way; the QC column takes its share from
+    # the wide text columns.
+    name_w, gen_w, test_w = (54, 42, 46) if show_qc else (62, 46, 48)
+    columns = [("#", 9), ("Sample ID", 34), ("Sample name", name_w), ("Anderson ID", 28),
+               ("Gen ID", gen_w), ("Test", test_w), ("Date", 20), ("Run", 30)]
+    if show_qc:
+        columns.append(("QC", 14))
+
+    pdf = _ListPDF(orientation="L", format="A4")
+    pdf.alias_nb_pages()
+    pdf.set_margins(10, 12, 10)
+    pdf.set_auto_page_break(auto=True, margin=14)
+    pdf.add_page()
+
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.cell(0, 8, _pdf_text(label if "sample" in label.lower() else f"{label} - samples"), new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", "", 9)
+    pdf.set_text_color(100, 100, 100)
+    notes = [f"{len(items):,} sample{'' if len(items) == 1 else 's'}",
+             f"Generated {datetime.now().strftime('%d %b %Y, %H:%M')}"]
+    if period:
+        notes.append(f"Period: {period}")
+    if q.strip():
+        notes.append(f'Search: "{q.strip()}"')
+    pdf.cell(0, 5, _pdf_text("  |  ".join(notes)), new_x="LMARGIN", new_y="NEXT")
+    pdf.set_text_color(0, 0, 0)
+    pdf.ln(3)
+
+    def fmt_date(iso: str) -> str:
+        hit = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", iso or "")
+        return f"{hit[3]}/{hit[2]}/{hit[1]}" if hit else ""
+
+    pdf.set_font("Helvetica", "", 7.5)
+    with pdf.table(
+        col_widths=tuple(w for _, w in columns),
+        text_align=tuple("RIGHT" if name == "#" else "LEFT" for name, _ in columns),
+        line_height=4.6,
+        headings_style=FontFace(emphasis="BOLD", color=(60, 70, 85), fill_color=(235, 238, 243)),
+        borders_layout="HORIZONTAL_LINES",
+    ) as table:
+        head = table.row()
+        for name, _ in columns:
+            head.cell(name)
+        for n, i in enumerate(items, 1):
+            row = table.row()
+            values = [str(n), i.get("sample_id"), i.get("sample_name"), i.get("description"),
+                      i.get("gen_id"), i.get("test"), fmt_date(i.get("date")), i.get("run")]
+            if show_qc:
+                values.append(i.get("qc"))
+            for v in values:
+                row.cell(_pdf_text(v))
+    return bytes(pdf.output())
+
+
+@router.get("/total-work-done/samples/export")
+def export_total_work_done_samples(
+    category: str, format: str = "pdf", year: str | None = None, month: str | None = None,
+    q: str = "", db: Session = Depends(get_db), _: models.User = Depends(get_current_user),
+):
+    """The same list the dialog shows (category, month filter and search), as a file."""
+    fmt = format.lower()
+    if fmt not in EXPORT_FORMATS:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"Unsupported format. Supported: {', '.join(sorted(EXPORT_FORMATS))}",
+        )
+    year, month = _check_period(year, month)
+    label, items = _sample_items(db, category, year, month)
+    items = [i for i in items if _item_matches(i, q)]
+    safe = re.sub(r"[^A-Za-z0-9]+", "_", label).strip("_")
+    filename = f"{safe}_{datetime.now().strftime('%Y-%m-%d')}.pdf"
+    return Response(
+        _build_sample_list_pdf(label, items, _period_label(year, month), q),
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

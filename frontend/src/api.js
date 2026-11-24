@@ -160,6 +160,8 @@ export const api = {
   getTotalWorkDone: (period) => request(`/api/dashboard/total-work-done${periodQuery(period)}`),
   getTotalWorkDoneSamples: (category, period) =>
     request(`/api/dashboard/total-work-done/samples${periodQuery(period, { category })}`),
+  totalWorkDoneSamplesExportUrl: (category, period, q, format) =>
+    `${BASE}/api/dashboard/total-work-done/samples/export${periodQuery(period, { category, format, ...(q ? { q } : {}) })}`,
   totalWorkDoneExportUrl: (format, period) =>
     `${BASE}/api/dashboard/total-work-done/export${periodQuery(period, { format })}`,
 
@@ -200,6 +202,30 @@ export async function downloadSheetExport(runNumber) {
   URL.revokeObjectURL(url);
 }
 
+/** Download one sample's report (information, QC status, Fastp, HS metrics) as a PDF. */
+export async function downloadSampleReport(runNumber, rowIndex, sampleId) {
+  const res = await fetch(
+    `${BASE}/api/runs/${encodeURIComponent(runNumber)}/sheet/sample-report.pdf?row_index=${encodeURIComponent(rowIndex)}`,
+    { headers: authHeaders() }
+  );
+  if (!res.ok) throw new Error("Could not create the PDF for this sample.");
+  // A server that doesn't know this endpoint (an older backend still running) can answer with
+  // the web page instead; don't save that as a .pdf.
+  if (!(res.headers.get("content-type") || "").includes("application/pdf")) {
+    throw new Error("The server did not return a PDF. Restart the backend and try again.");
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const safe = String(sampleId || `row${rowIndex}`).replace(/[^A-Za-z0-9._-]+/g, "_");
+  a.download = `${runNumber}_${safe}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 /** Download the month's consolidated table as a fresh .xlsx. */
 export async function downloadMonthlyReport(year, month) {
   const res = await fetch(api.monthlyReportExportUrl(year, month), {
@@ -219,6 +245,24 @@ export async function downloadMonthlyReport(year, month) {
 }
 
 /** Download the Total Work Done summary in the given format (currently "pdf"). */
+/** Download the sample list behind a dashboard card (same category, filter and search as
+ * the dialog) as "pdf". */
+export async function downloadSampleList(category, period, q, format) {
+  const res = await fetch(api.totalWorkDoneSamplesExportUrl(category, period, q, format), {
+    headers: { Authorization: `Bearer ${getToken()}` },
+  });
+  if (!res.ok) throw new Error("Could not export the sample list.");
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${category}_samples_${new Date().toISOString().slice(0, 10)}.${format}`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export async function downloadTotalWorkDone(format, period) {
   const res = await fetch(api.totalWorkDoneExportUrl(format, period), {
     headers: authHeaders(),

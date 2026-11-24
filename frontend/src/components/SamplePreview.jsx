@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { api } from "../api";
+import { api, downloadSampleReport } from "../api";
 import { Alert, Icon, Spinner } from "./ui";
 
 const QC_OPTIONS = ["Pass", "Fail"];
@@ -93,50 +93,62 @@ function hashOf(str) {
   return h;
 }
 
-function initialsOf(name) {
-  const parts = String(name || "")
-    .replace(/\(.*?\)/g, "")
-    .replace(/^(mrs|mr|ms|miss|dr|baby|master|b\/o|w\/o|d\/o|s\/o)\b\.?\s*/i, "")
-    .split(/[\s.]+/)
-    .filter(Boolean);
-  return ((parts[0]?.[0] || "?") + (parts[1]?.[0] || "")).toUpperCase();
-}
-
-const AVATARS = [
-  "from-brand-500 to-brand-700",
-  "from-accent-400 to-accent-600",
-  "from-violet-500 to-violet-700",
-  "from-teal-500 to-teal-700",
-  "from-pink-500 to-pink-700",
-  "from-amber-500 to-amber-600",
+// Tests are coloured by family, so "WES" and "WES+Mito" share a colour while WES, CES, a
+// hereditary-cancer panel and so on each get their own. The first matching rule wins; a test
+// that matches none is grouped by its first word and takes one of the spare colours.
+const TEST_FAMILIES = [
+  { id: "wes", match: /^WES/i },
+  { id: "wgs", match: /\bWGS\b/i },
+  { id: "ces", match: /\bCES\b/i },
+  { id: "point", match: /POINT\s*MUTATION/i },
+  { id: "genesight", match: /GENESIGHT/i },
+  { id: "cancer", match: /CANCER/i },
+  { id: "fh", match: /HYPERCHOLESTEROLEMIA/i },
+  { id: "mito", match: /MITO/i },
+  { id: "panel", match: /PANEL/i },
 ];
 
-function Avatar({ name, size = "sm" }) {
-  const dim = size === "lg" ? "w-12 h-12 text-base rounded-2xl" : "w-8 h-8 text-[11px] rounded-full";
+// Class names are written out in full so Tailwind can see them.
+const FAMILY_TONES = {
+  wes: "bg-brand-50 text-brand-800 border-brand-200",
+  wgs: "bg-violet-50 text-violet-700 border-violet-200",
+  ces: "bg-teal-50 text-teal-700 border-teal-200",
+  point: "bg-rose-50 text-rose-700 border-rose-200",
+  genesight: "bg-indigo-50 text-indigo-700 border-indigo-200",
+  cancer: "bg-pink-50 text-pink-700 border-pink-200",
+  fh: "bg-orange-50 text-orange-700 border-orange-200",
+  mito: "bg-amber-50 text-amber-800 border-amber-200",
+  panel: "bg-cyan-50 text-cyan-700 border-cyan-200",
+};
+const SPARE_TONES = [
+  "bg-lime-50 text-lime-800 border-lime-200",
+  "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200",
+  "bg-sky-50 text-sky-700 border-sky-200",
+  "bg-emerald-50 text-emerald-700 border-emerald-200",
+  "bg-slate-100 text-slate-600 border-slate-300",
+];
+
+function testTone(name) {
+  const text = String(name).trim();
+  const family = TEST_FAMILIES.find((f) => f.match.test(text));
+  if (family) return FAMILY_TONES[family.id];
+  const firstWord = text.toUpperCase().split(/[^A-Z0-9]+/).filter(Boolean)[0] || text;
+  return SPARE_TONES[hashOf(firstWord) % SPARE_TONES.length];
+}
+
+function Tag({ children, tone }) {
   return (
     <span
-      className={`${dim} bg-gradient-to-br ${AVATARS[hashOf(String(name || "?")) % AVATARS.length]} text-white font-extrabold flex items-center justify-center shrink-0 shadow-sm`}
-      aria-hidden="true"
+      className={`inline-block max-w-full truncate align-middle text-[11px] font-bold px-2 py-0.5 rounded-md border ${tone}`}
+      title={typeof children === "string" ? children : undefined}
     >
-      {initialsOf(name)}
-    </span>
-  );
-}
-
-const TAGS = [
-  "bg-brand-50 text-brand-800 border-brand-200",
-  "bg-violet-50 text-violet-700 border-violet-200",
-  "bg-teal-50 text-teal-700 border-teal-200",
-  "bg-amber-50 text-amber-800 border-amber-200",
-  "bg-pink-50 text-pink-700 border-pink-200",
-];
-
-function Tag({ children, seed }) {
-  return (
-    <span className={`inline-block max-w-full truncate align-middle text-[11px] font-bold px-2 py-0.5 rounded-md border ${TAGS[hashOf(String(seed ?? children)) % TAGS.length]}`}>
       {children}
     </span>
   );
+}
+
+function TestTag({ value }) {
+  return <Tag tone={testTone(value)}>{value}</Tag>;
 }
 
 function GenderChip({ value }) {
@@ -166,7 +178,7 @@ function CellValue({ col, val }) {
     case "genid":
       return <span className="font-mono text-xs text-slate-500">{val}</span>;
     case "test":
-      return <Tag>{val}</Tag>;
+      return <TestTag value={val} />;
     case "gendertrf":
     case "genderigv":
       return <GenderChip value={val} />;
@@ -226,13 +238,14 @@ const TH =
   "sticky top-0 z-10 bg-slate-100/95 backdrop-blur text-left text-[11px] uppercase tracking-wider font-bold text-slate-500 px-4 py-3 border-b border-slate-200 whitespace-nowrap";
 const TD = "px-4 py-3 border-b border-slate-100";
 
-function Chip({ active, disabled, onClick, children }) {
+function Chip({ active, disabled, onClick, block, children }) {
   return (
     <button
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors ${
+      aria-pressed={!!active}
+      className={`${block ? "w-full" : ""} px-3 py-1.5 rounded-lg text-sm font-semibold border transition-colors ${
         active
           ? "bg-brand-700 border-brand-700 text-white shadow-sm"
           : disabled
@@ -245,35 +258,50 @@ function Chip({ active, disabled, onClick, children }) {
   );
 }
 
-function FilterGroup({ title, hint, children }) {
+function FilterGroup({ title, children }) {
   return (
     <div>
-      <div className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1.5">
-        {title}
-        {hint && <span className="normal-case font-semibold tracking-normal"> · {hint}</span>}
-      </div>
+      <div className="text-xs font-extrabold text-slate-700 mb-2.5">{title}</div>
       {children}
     </div>
   );
 }
 
-/** One small button that opens a popover with Year, Month, QC Pass and Re-Sequencing chips
+/** One small button that opens a popover with Year, Month, Test, QC Pass and Re-Sequencing chips
  * (each multi-select). The button itself shows the active filter, e.g. "Apr 2026". */
 function FilterMenu({
   yearOptions, years, onToggleYear, onAllYears, monthOptions, months, onToggleMonth,
-  qcs, onToggleQc, reseqs, onToggleReseq, onClear,
+  testOptions, tests, onToggleTest, qcs, onToggleQc, reseqs, onToggleReseq, onClear,
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
+  const panelRef = useRef(null);
+  // The panel lives in a portal on <body>, positioned from the button's rectangle, because the
+  // preview sits inside cards with overflow hidden that would otherwise cut it off.
+  const [rect, setRect] = useState(null);
+  const [wide, setWide] = useState(true);
   useEffect(() => {
     if (!open) return;
-    const onDown = (e) => ref.current && !ref.current.contains(e.target) && setOpen(false);
+    const place = () => {
+      setWide(window.innerWidth >= 640);
+      setRect(ref.current ? ref.current.getBoundingClientRect() : null);
+    };
+    place();
+    const onDown = (e) => {
+      const t = e.target;
+      if (ref.current?.contains(t) || panelRef.current?.contains(t)) return;
+      setOpen(false);
+    };
     const onKey = (e) => e.key === "Escape" && setOpen(false);
     document.addEventListener("mousedown", onDown);
     window.addEventListener("keydown", onKey);
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
     return () => {
       document.removeEventListener("mousedown", onDown);
       window.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
     };
   }, [open]);
 
@@ -282,9 +310,10 @@ function FilterMenu({
   const yearText = years.length === 0 ? "" : years.length <= 2 ? years.map(nameOf).join(", ") : `${years.length} years`;
   const monthText =
     months.length === 0 ? "" : months.length <= 2 ? months.map((m) => MONTH_ABBR[Number(m) - 1]).join(", ") : `${months.length} months`;
+  const testText = tests.length === 0 ? "" : tests.length === 1 ? tests[0] : `${tests.length} tests`;
   const qcText = qcs.length === 0 ? "" : `QC ${qcs.join("/")}`;
   const reseqText = reseqs.length === 0 ? "" : `Re-seq ${reseqs.join("/")}`;
-  const parts = [monthText, yearText, qcText, reseqText].filter(Boolean);
+  const parts = [monthText, yearText, testText, qcText, reseqText].filter(Boolean);
   // Keep the button short: spell the picks out for up to two groups, otherwise count the groups.
   const summary = parts.length <= 2 ? parts.join(" · ") : `${parts.length} filters`;
   const active = parts.length > 0;
@@ -313,77 +342,122 @@ function FilterMenu({
         )}
       </div>
 
-      {open && (
-        <div className="sm:hidden fixed inset-0 z-30 bg-slate-900/40" onClick={() => setOpen(false)} aria-hidden="true" />
-      )}
-      {open && (
-        <div className="fade-up fixed inset-x-0 bottom-0 z-40 max-h-[85vh] overflow-y-auto rounded-t-3xl sm:rounded-2xl sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-full sm:mt-2 sm:z-30 sm:w-80 sm:max-h-none border border-slate-200 bg-white shadow-2xl p-4 space-y-3.5">
-          <FilterGroup title="Year" hint="pick one or more">
-            <div className="flex flex-wrap gap-1.5">
-              <Chip active={years.length === 0} onClick={onAllYears}>
-                All
-              </Chip>
-              {yearOptions.map((o) => (
-                <Chip key={o.value} active={years.includes(o.value)} onClick={() => onToggleYear(o.value)}>
-                  {o.label}
+      {open &&
+        createPortal(
+          <>
+            {!wide && <div className="fixed inset-0 z-[59] bg-slate-900/40" onClick={() => setOpen(false)} aria-hidden="true" />}
+            <div
+              ref={panelRef}
+              role="dialog"
+              aria-label="Filters"
+              style={
+                wide && rect
+                  ? { top: rect.bottom + 8, right: Math.max(12, window.innerWidth - rect.right), maxHeight: `calc(100vh - ${rect.bottom + 20}px)` }
+                  : undefined
+              }
+              className={`fade-up fixed z-[60] flex flex-col border border-slate-200 bg-white shadow-2xl overflow-hidden ${
+                wide ? "w-[23rem] max-w-[calc(100vw-1.5rem)] rounded-2xl" : "inset-x-0 bottom-0 max-h-[88vh] rounded-t-3xl"
+              }`}
+            >
+          <div className="flex items-center px-5 pt-4 pb-3 border-b border-slate-100 shrink-0">
+            <h3 className="text-sm font-extrabold text-slate-800">Filters</h3>
+            <button
+              type="button"
+              onClick={onClear}
+              disabled={!active}
+              className="ml-auto text-xs font-bold text-slate-500 hover:text-accent-700 disabled:opacity-40 disabled:hover:text-slate-500"
+            >
+              Clear all
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6">
+            <FilterGroup title="Year">
+              <div className="flex flex-wrap gap-2">
+                <Chip active={years.length === 0} onClick={onAllYears}>
+                  All
                 </Chip>
-              ))}
-            </div>
-          </FilterGroup>
-          <FilterGroup title="Month" hint="pick one or more">
-            <div className="grid grid-cols-4 gap-1.5">
-              {MONTH_ABBR.map((name, idx) => {
-                const value = String(idx + 1).padStart(2, "0");
-                return (
-                  <Chip key={value} active={months.includes(value)} disabled={!monthCount[value]} onClick={() => onToggleMonth(value)}>
-                    {name}
+                {yearOptions.map((o) => (
+                  <Chip key={o.value} active={years.includes(o.value)} onClick={() => onToggleYear(o.value)}>
+                    {o.label}
                   </Chip>
-                );
-              })}
-            </div>
-          </FilterGroup>
-          <div className="grid grid-cols-2 gap-3">
+                ))}
+              </div>
+            </FilterGroup>
+
+            <FilterGroup title="Month">
+              <div className="grid grid-cols-4 gap-2">
+                {MONTH_ABBR.map((name, idx) => {
+                  const value = String(idx + 1).padStart(2, "0");
+                  return (
+                    <Chip key={value} active={months.includes(value)} disabled={!monthCount[value]} onClick={() => onToggleMonth(value)} block>
+                      {name}
+                    </Chip>
+                  );
+                })}
+              </div>
+            </FilterGroup>
+
+            {testOptions.length > 0 && (
+              <FilterGroup title="Test">
+                <ul className="rounded-xl border border-slate-200 divide-y divide-slate-100 max-h-48 overflow-y-auto">
+                  {testOptions.map((o) => {
+                    const on = tests.includes(o.value);
+                    return (
+                      <li key={o.value}>
+                        <label className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer text-sm transition-colors ${on ? "bg-brand-50" : "hover:bg-slate-50"}`}>
+                          <input
+                            type="checkbox"
+                            checked={on}
+                            onChange={() => onToggleTest(o.value)}
+                            className="w-4 h-4 rounded border-slate-300 text-brand-700 focus:ring-brand-500"
+                          />
+                          <span className={`flex-1 min-w-0 truncate ${on ? "font-bold text-brand-800" : "text-slate-700"}`} title={o.label}>
+                            {o.label}
+                          </span>
+                          <span className="text-xs text-slate-400 tabular-nums">{o.count}</span>
+                        </label>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </FilterGroup>
+            )}
+
             <FilterGroup title="QC Pass">
-              <div className="flex flex-wrap gap-1.5">
+              <div className="grid grid-cols-2 gap-2">
                 {QC_OPTIONS.map((v) => (
-                  <Chip key={v} active={qcs.includes(v)} onClick={() => onToggleQc(v)}>
+                  <Chip key={v} active={qcs.includes(v)} onClick={() => onToggleQc(v)} block>
                     {v}
                   </Chip>
                 ))}
               </div>
             </FilterGroup>
+
             <FilterGroup title="Re-Sequencing">
-              <div className="flex flex-wrap gap-1.5">
+              <div className="grid grid-cols-2 gap-2">
                 {RESEQ_OPTIONS.map((v) => (
-                  <Chip key={v} active={reseqs.includes(v)} onClick={() => onToggleReseq(v)}>
+                  <Chip key={v} active={reseqs.includes(v)} onClick={() => onToggleReseq(v)} block>
                     {v}
                   </Chip>
                 ))}
               </div>
             </FilterGroup>
           </div>
-          <div className="flex items-center justify-between pt-3 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={() => {
-                onClear();
-                setOpen(false);
-              }}
-              disabled={!active}
-              className="text-xs font-bold text-slate-500 hover:text-accent-700 disabled:opacity-40 disabled:hover:text-slate-500"
-            >
-              Clear all
-            </button>
+
+          <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/70 shrink-0">
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="text-xs font-bold bg-brand-700 hover:bg-brand-800 text-white rounded-lg px-5 py-1.5 transition-colors"
+              className="w-full text-sm font-bold bg-brand-700 hover:bg-brand-800 text-white rounded-xl py-2.5 transition-colors"
             >
               Done
             </button>
           </div>
-        </div>
-      )}
+            </div>
+          </>,
+          document.body
+        )}
     </div>
   );
 }
@@ -422,7 +496,7 @@ const BTN =
  * QC Pass / Re-Sequencing change in either place shows in the other immediately and is
  * saved through the existing /sheet/qc endpoint (Primary Team Head only, as before).
  */
-export default function SamplePreview({ runNumber, role }) {
+export default function SamplePreview({ runNumber, role, onDownload }) {
   const [sheet, setSheet] = useState(null);
   const [metrics, setMetrics] = useState(null);
   const [error, setError] = useState(null);
@@ -450,6 +524,7 @@ export default function SamplePreview({ runNumber, role }) {
   }, [expanded, openRow]);
   const [years, setYears] = useState([]); // selected "YYYY" / "none" (no date); empty = every year
   const [months, setMonths] = useState([]); // selected "01".."12"; empty = every month
+  const [tests, setTests] = useState([]); // selected Test values; empty = every test
   const [qcs, setQcs] = useState([]); // selected "Pass" / "Fail"; empty = either
   const [reseqs, setReseqs] = useState([]); // selected "Yes" / "No"; empty = either
 
@@ -457,6 +532,7 @@ export default function SamplePreview({ runNumber, role }) {
     let alive = true;
     setYears([]);
     setMonths([]);
+    setTests([]);
     setQcs([]);
     setReseqs([]);
     setQuery("");
@@ -544,6 +620,20 @@ export default function SamplePreview({ runNumber, role }) {
       .sort((a, b) => (a === "none" ? 1 : b === "none" ? -1 : b.localeCompare(a)))
       .map((y) => ({ value: y, label: y === "none" ? "No date" : y, count: counts[y] }));
   }, [sheet?.rows, partsOf]);
+  // Test filter: one option per distinct value in the Test column, most common first.
+  const testCol = colFor("test");
+  const testOf = useCallback((row) => (testCol && !isBlank(row.cells[testCol]) ? String(row.cells[testCol]).trim() : ""), [testCol]);
+  const testOptions = useMemo(() => {
+    const counts = {};
+    for (const r of sheet?.rows || []) {
+      const t = testOf(r);
+      if (t) counts[t] = (counts[t] || 0) + 1;
+    }
+    return Object.keys(counts)
+      .sort((a, b) => counts[b] - counts[a] || a.localeCompare(b))
+      .map((t) => ({ value: t, label: t, count: counts[t] }));
+  }, [sheet?.rows, testOf]);
+  const activeTests = tests.filter((t) => testOptions.some((o) => o.value === t));
   const activeYears = years.filter((y) => yearOptions.some((o) => o.value === y));
   const inYear = useMemo(
     () => (activeYears.length === 0 ? sheet?.rows || [] : (sheet?.rows || []).filter((r) => activeYears.includes(partsOf(r).y))),
@@ -568,16 +658,17 @@ export default function SamplePreview({ runNumber, role }) {
     () =>
       inYear.filter((r) => {
         if (activeMonths.length > 0 && !activeMonths.includes(partsOf(r).m)) return false;
+        if (activeTests.length > 0 && !activeTests.includes(testOf(r))) return false;
         if (!searchText) return true;
         return Object.values(r.cells).some((v) => String(v ?? "").toLowerCase().includes(searchText));
       }),
-    [inYear, activeMonths, partsOf, searchText]
+    [inYear, activeMonths, activeTests, partsOf, testOf, searchText]
   );
   const visibleRows = useMemo(
     () => baseRows.filter((r) => (qcs.length === 0 || qcs.includes(r.qc_pass)) && (reseqs.length === 0 || reseqs.includes(r.resequencing))),
     [baseRows, qcs, reseqs]
   );
-  const filtered = activeYears.length > 0 || activeMonths.length > 0 || qcs.length > 0 || reseqs.length > 0 || !!searchText;
+  const filtered = activeYears.length > 0 || activeMonths.length > 0 || activeTests.length > 0 || qcs.length > 0 || reseqs.length > 0 || !!searchText;
 
   if (error) {
     return (
@@ -630,6 +721,7 @@ export default function SamplePreview({ runNumber, role }) {
       const tag = [
         activeYears.map((y) => (y === "none" ? "NoDate" : y)).join("-"),
         activeMonths.map((m) => MONTH_ABBR[Number(m) - 1]).join("-"),
+        activeTests.map((t) => t.replace(/[^A-Za-z0-9]+/g, "")).join("-"),
         qcs.length ? `QC-${qcs.join("-")}` : "",
         reseqs.length ? `Reseq-${reseqs.join("-")}` : "",
       ]
@@ -644,6 +736,7 @@ export default function SamplePreview({ runNumber, role }) {
   const resetFilters = () => {
     setYears([]);
     setMonths([]);
+    setTests([]);
     setQcs([]);
     setReseqs([]);
     setQuery("");
@@ -674,11 +767,11 @@ export default function SamplePreview({ runNumber, role }) {
   };
 
   return (
-    <div ref={setRootEl} className={expanded ? "fixed inset-0 z-40 flex flex-col min-h-0 bg-slate-100" : "h-full flex flex-col min-h-0 bg-slate-100"}>
+    <div ref={setRootEl} className={expanded ? "fixed inset-0 z-40 flex flex-col min-h-0 bg-white" : "h-full flex flex-col min-h-0 bg-white"}>
       {/* Header, kept to two slim rows so the table gets the height:
           row 1  title + count            | Filter / Export / Full screen
           row 2  search + clickable counts (scrolls sideways if it must)           */}
-      <div className="px-3 sm:px-4 py-2.5 bg-white border-b border-slate-200 shrink-0 space-y-2.5">
+      <div className="px-3 sm:px-4 py-2.5 bg-gradient-to-r from-brand-50 to-white border-b border-slate-200 shrink-0 space-y-2.5">
         <div className="flex items-center gap-2.5">
           <div className="hidden sm:flex w-9 h-9 rounded-xl bg-gradient-to-br from-brand-500 to-brand-800 text-white items-center justify-center shrink-0 shadow">
             <Icon name="dna" size={18} />
@@ -701,6 +794,9 @@ export default function SamplePreview({ runNumber, role }) {
                 monthOptions={monthOptions}
                 months={activeMonths}
                 onToggleMonth={(v) => toggle(months, setMonths, v)}
+                testOptions={testOptions}
+                tests={activeTests}
+                onToggleTest={(v) => toggle(tests, setTests, v)}
                 qcs={qcs}
                 onToggleQc={(v) => toggle(qcs, setQcs, v)}
                 reseqs={reseqs}
@@ -718,6 +814,12 @@ export default function SamplePreview({ runNumber, role }) {
               <Icon name="download" size={13} />
               <span className="hidden md:inline">Export</span>
             </button>
+            {onDownload && (
+              <button onClick={onDownload} className={BTN} title="Download the original Excel file" aria-label="Download the original file">
+                <Icon name="file" size={13} />
+                <span className="hidden lg:inline">Original</span>
+              </button>
+            )}
             <button
               onClick={() => setExpanded((v) => !v)}
               className={BTN}
@@ -782,8 +884,8 @@ export default function SamplePreview({ runNumber, role }) {
           </Alert>
         </div>
       ) : (
-        <div className="flex-1 min-h-0 p-3">
-          <div className="h-full flex flex-col rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="flex-1 min-h-0">
+          <div className="h-full flex flex-col bg-white">
             <div className={narrow ? "hidden" : "flex-1 min-h-0 overflow-auto"}>
               <table className="w-full min-w-[72rem] text-sm border-separate border-spacing-0">
                 <thead>
@@ -818,10 +920,7 @@ export default function SamplePreview({ runNumber, role }) {
                               {val === null ? (
                                 <span className="text-slate-300">—</span>
                               ) : (
-                                <span className="flex items-center gap-2.5 min-w-0">
-                                  <Avatar name={val} />
-                                  <span className="truncate font-semibold text-slate-900">{val}</span>
-                                </span>
+                                <span className="block truncate font-semibold text-slate-900">{val}</span>
                               )}
                             </td>
                           );
@@ -886,12 +985,11 @@ export default function SamplePreview({ runNumber, role }) {
                     className={`px-3.5 py-3.5 active:bg-brand-50 focus:outline-none focus:bg-brand-50 ${row.qc_pass === "Fail" ? "bg-accent-50/60" : "bg-white"}`}
                   >
                     <div className="flex items-start gap-3">
-                      <Avatar name={name || "?"} />
                       <div className="min-w-0 flex-1">
                         <div className="font-semibold text-slate-900 truncate">{name ?? "—"}</div>
                         <div className="mt-1 flex items-center gap-1.5 flex-wrap">
                           <CellValue col={INFO_COLUMNS[0]} val={valueOf(row, "sampleid")} />
-                          {test && <Tag>{test}</Tag>}
+                          {test && <TestTag value={test} />}
                           {gender && <GenderChip value={gender} />}
                         </div>
                         {(sub || date) && (
@@ -908,7 +1006,7 @@ export default function SamplePreview({ runNumber, role }) {
                       </div>
                       <Icon name="chevronRight" size={16} className="text-slate-300 mt-2 shrink-0" />
                     </div>
-                    <div className="mt-3 flex items-center gap-x-4 gap-y-2 flex-wrap pl-11">
+                    <div className="mt-3 flex items-center gap-x-4 gap-y-2 flex-wrap">
                       <label className="flex items-center gap-2 text-[11px] font-bold text-slate-500" onClick={(e) => e.stopPropagation()}>
                         QC
                         <StatusSelect
@@ -957,6 +1055,7 @@ export default function SamplePreview({ runNumber, role }) {
           saving={saving}
           onChange={updateQC}
           onClose={() => setOpenRow(null)}
+          onDownloadPdf={() => downloadSampleReport(runNumber, selected.row_index, selected.cells[idCol])}
           onPrev={selectedPos > 0 ? () => goTo(-1) : undefined}
           onNext={selectedPos >= 0 && selectedPos < visibleRows.length - 1 ? () => goTo(1) : undefined}
           position={selectedPos >= 0 ? `${selectedPos + 1} of ${visibleRows.length}` : undefined}
@@ -1007,8 +1106,22 @@ function readsInMillions(v) {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-export function SampleModal({ row, colFor, idCol, metrics, canEditQC, saving, onChange, onClose, footerNote, onPrev, onNext, position }) {
+export function SampleModal({ row, colFor, idCol, metrics, canEditQC, saving, onChange, onClose, footerNote, onPrev, onNext, position, onDownloadPdf }) {
   const [hsQuery, setHsQuery] = useState("");
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfError, setPdfError] = useState(null);
+
+  async function downloadPdf() {
+    setPdfBusy(true);
+    setPdfError(null);
+    try {
+      await onDownloadPdf();
+    } catch (e) {
+      setPdfError(e.message || "Could not create the PDF.");
+    } finally {
+      setPdfBusy(false);
+    }
+  }
 
   useEffect(() => {
     const onKey = (e) => {
@@ -1028,7 +1141,10 @@ export function SampleModal({ row, colFor, idCol, metrics, canEditQC, saving, on
   }, [onClose, onPrev, onNext]);
 
   // A different sample starts with a clean metric search.
-  useEffect(() => setHsQuery(""), [row.row_index]);
+  useEffect(() => {
+    setHsQuery("");
+    setPdfError(null);
+  }, [row.row_index]);
 
   const sampleId = String(row.cells[idCol] ?? "").trim();
   const fastp = metrics?.fastp?.[sampleId];
@@ -1111,7 +1227,6 @@ export function SampleModal({ row, colFor, idCol, metrics, canEditQC, saving, on
         onClick={(e) => e.stopPropagation()}
       >
         <header className="px-3.5 sm:px-5 py-3 sm:py-4 bg-gradient-to-br from-brand-900 via-brand-800 to-brand-600 text-white flex items-center gap-2.5 sm:gap-4 flex-wrap sm:flex-nowrap shrink-0">
-          <Avatar name={name} size="lg" />
           <div className="min-w-0 flex-1 basis-40">
             <div className="text-base sm:text-lg font-extrabold truncate leading-tight">{name}</div>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -1134,7 +1249,18 @@ export function SampleModal({ row, colFor, idCol, metrics, canEditQC, saving, on
               </button>
             </div>
           )}
-          <button onClick={onClose} className="text-white/80 hover:text-white shrink-0 order-2 sm:order-none ml-auto sm:ml-0" title="Close (Esc)" aria-label="Close">
+          {onDownloadPdf && (
+            <button
+              onClick={downloadPdf}
+              disabled={pdfBusy}
+              className="w-9 h-9 rounded-lg bg-white/15 hover:bg-white/25 text-white shrink-0 order-2 sm:order-none ml-auto sm:ml-0 flex items-center justify-center transition-colors disabled:opacity-60 disabled:cursor-wait"
+              title="Download this sample as a PDF"
+              aria-label="Download PDF"
+            >
+              {pdfBusy ? <Spinner /> : <Icon name="download" size={18} />}
+            </button>
+          )}
+          <button onClick={onClose} className={`text-white/80 hover:text-white shrink-0 order-2 sm:order-none ${onDownloadPdf ? "" : "ml-auto sm:ml-0"}`} title="Close (Esc)" aria-label="Close">
             <Icon name="x" size={22} />
           </button>
         </header>
@@ -1247,6 +1373,7 @@ export function SampleModal({ row, colFor, idCol, metrics, canEditQC, saving, on
         <footer className="px-3.5 sm:px-5 py-3 bg-white border-t border-slate-200 flex items-center gap-x-4 gap-y-2 flex-wrap shrink-0">
           {qcControls}
           {!canEditQC && <span className="text-[11px] text-slate-400">{footerNote ?? "Only the Primary Team Head can change these."}</span>}
+          {pdfError && <span className="text-xs font-semibold text-accent-700">{pdfError}</span>}
           <button className="btn-ghost ml-auto py-1.5 px-4 text-xs" onClick={onClose}>
             Close
           </button>

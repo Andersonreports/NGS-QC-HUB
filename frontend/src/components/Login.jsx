@@ -24,7 +24,7 @@ export default function Login({ onLoggedIn }) {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 bg-gradient-to-br from-brand-50 via-slate-100 to-accent-50">
+    <div className="min-h-screen flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="flex items-center gap-3 mb-6">
           <div className="w-11 h-11 rounded-xl bg-accent-600 text-white flex items-center justify-center">

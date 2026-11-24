@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api } from "../api";
+import { createPortal } from "react-dom";
+import { api, downloadSampleList } from "../api";
 import PeriodFilter, { periodLabel } from "./PeriodFilter";
 import { SampleModal } from "./SamplePreview";
 import { Alert, Icon, Spinner } from "./ui";
@@ -16,6 +17,10 @@ const QC_CHIP = {
 const nameKey = (v) => String(v ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
 const NO_METRICS = { fastp: {}, hs: {}, hs_metrics: [], available: false };
 const NO_OP = () => {};
+
+// Formats the Export menu offers — keep in sync with EXPORT_FORMATS in
+// backend/app/routers/dashboard.py.
+const EXPORT_FORMATS = [{ id: "pdf", label: "PDF document" }];
 
 /** 2026-04-23 -> 23/04/2026; blank when the sample has no date. */
 function formatDate(iso) {
@@ -39,6 +44,9 @@ export default function SampleListDialog({ category, period, title, tone, onClos
   const [state, setState] = useState({ loading: true, error: null, data: null });
   const [query, setQuery] = useState("");
   const [narrow, setNarrow] = useState({ year: "all", month: "all" }); // dialog's own filter
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [exporting, setExporting] = useState(null);
+  const [exportError, setExportError] = useState(null);
   const [loadingKey, setLoadingKey] = useState(null);
   const [detailError, setDetailError] = useState(null);
   const [detail, setDetail] = useState(null);
@@ -89,6 +97,25 @@ export default function SampleListDialog({ category, period, title, tone, onClos
 
   const shown = filtered.slice(0, ROW_LIMIT);
 
+  // Export what is on screen: this card's list, the dashboard filter, the dialog's own
+  // year / month choice (it narrows within the dashboard's) and the search text.
+  async function exportAs(format) {
+    setMenuOpen(false);
+    setExporting(format);
+    setExportError(null);
+    try {
+      const effective = {
+        year: narrow.year !== "all" ? narrow.year : period?.year,
+        month: narrow.month !== "all" ? narrow.month : period?.month,
+      };
+      await downloadSampleList(category, effective, query.trim(), format);
+    } catch (e) {
+      setExportError(e.message);
+    } finally {
+      setExporting(null);
+    }
+  }
+
   async function openSample(s, key) {
     setDetailError(null);
     setLoadingKey(key);
@@ -131,7 +158,9 @@ export default function SampleListDialog({ category, period, title, tone, onClos
     }
   }
 
-  return (
+  // Rendered on the page body, not inside the dashboard panel: the panel has its own
+  // stacking layer, which would otherwise keep this dialog underneath the sticky header.
+  return createPortal(
     <div
       className={`tone-${tone} fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/45 p-0 sm:p-6`}
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
@@ -182,7 +211,48 @@ export default function SampleListDialog({ category, period, title, tone, onClos
           {periods.length > 0 && (
             <PeriodFilter className="ml-auto" periods={periods} year={narrow.year} month={narrow.month} onChange={setNarrow} />
           )}
+          <div className={`relative ${periods.length > 0 ? "" : "ml-auto"}`}>
+            <button
+              type="button"
+              className="btn-ghost bg-white py-2 px-3.5 text-xs"
+              disabled={!state.data || filtered.length === 0 || exporting !== null}
+              onClick={() => setMenuOpen((o) => !o)}
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+            >
+              {exporting ? <Spinner className="text-slate-400" /> : <Icon name="download" size={14} />} Export
+              <Icon name="chevronDown" size={13} className={`transition-transform ${menuOpen ? "rotate-180" : ""}`} />
+            </button>
+            {menuOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+                <div className="absolute right-0 mt-2 w-52 card shadow-lg z-20 p-1" role="menu">
+                  <p className="px-3 pt-2 pb-1 text-[0.7rem] font-semibold uppercase tracking-wide text-slate-400">
+                    Export {filtered.length.toLocaleString()} sample{filtered.length === 1 ? "" : "s"} as
+                  </p>
+                  {EXPORT_FORMATS.map((f) => (
+                    <button
+                      key={f.id}
+                      role="menuitem"
+                      className="w-full text-left px-3 py-2 rounded-md text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2.5"
+                      onClick={() => exportAs(f.id)}
+                    >
+                      <Icon name="file" size={15} className="text-slate-400" /> {f.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </div>
+
+        {exportError && (
+          <div className="px-5 pt-3">
+            <Alert kind="error" onDismiss={() => setExportError(null)}>
+              {exportError}
+            </Alert>
+          </div>
+        )}
 
         {detailError && (
           <div className="px-5 pt-3">
@@ -278,6 +348,7 @@ export default function SampleListDialog({ category, period, title, tone, onClos
           footerNote="QC status is changed from the run's My Work page."
         />
       )}
-    </div>
+    </div>,
+    document.body
   );
 }

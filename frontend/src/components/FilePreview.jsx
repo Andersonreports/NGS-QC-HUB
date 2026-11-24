@@ -118,6 +118,22 @@ export default function FilePreview({ source, role, onClear }) {
     );
   }
 
+  // The sample table brings its own header (title, search, filters, export), so it fills the
+  // card instead of sitting under a file-name header in a box of its own.
+  if (state.status === "live-sheet") {
+    return (
+      <div className="card h-full overflow-hidden min-h-[24rem] relative">
+        <div className="absolute inset-0">
+          <SamplePreview
+            runNumber={source.runNumber}
+            role={role}
+            onDownload={() => downloadAttachment(source.runNumber, source.attachmentId, source.filename)}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="card h-full flex flex-col overflow-hidden min-h-[24rem]">
       {(

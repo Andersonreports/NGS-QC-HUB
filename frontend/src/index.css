@@ -4,7 +4,23 @@
 
 @layer base {
   body {
-    @apply bg-slate-50 text-slate-900 font-sans antialiased;
+    @apply text-slate-900 font-sans antialiased;
+    /* Site-wide background image: a pale wash keeps content readable, the image
+       stays fixed and covers any viewport (phone to ultrawide). */
+    background-color: #e8f1fa;
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.719), rgba(255, 255, 255, 0.06)),
+      url("./assets/bg.jpg");
+    background-size: cover;
+    background-position: center center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+  /* iOS/mobile browsers ignore background-attachment: fixed; fall back to scroll. */
+  @media (max-width: 768px), (hover: none) {
+    body { background-attachment: scroll; background-position: 30% center; }
   }
 }
 

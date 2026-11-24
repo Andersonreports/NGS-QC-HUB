@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -51,6 +51,10 @@ if FRONTEND_DIST.exists():
 
     @app.get("/{full_path:path}")
     def serve_frontend(full_path: str):
+        # An unknown /api/... address must be a real 404. Answering it with the web page and a
+        # 200 made a missing endpoint look like a successful (but corrupt) file download.
+        if full_path == "api" or full_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Not found")
         candidate = FRONTEND_DIST / full_path
         if full_path and candidate.is_file():
             return FileResponse(candidate)

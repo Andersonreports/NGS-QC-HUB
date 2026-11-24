@@ -15,6 +15,9 @@ import FileRow from "./FileRow";
 import RunActionForm from "./RunActionForm";
 import { Alert, Icon, RoleChip, Spinner, formatDateTime } from "./ui";
 
+// Light surface for the bars that would otherwise sit directly on the background photo.
+const BAR = "rounded-2xl bg-white/90 ring-1 ring-white/70 shadow-sm";
+
 /**
  * One run in full. The preview (sample table / PDF / image) is always the main area and
  * always has a real height; the files list and the step-by-step status share a side panel.
@@ -168,7 +171,7 @@ export default function RunHistory({ runNumber, user, onBack, onChanged, onSilen
   return (
     <div className="flex flex-col gap-3 sm:gap-4 lg:h-[calc(100dvh-var(--header-h,7.5rem)-3rem)] lg:overflow-hidden">
       {/* Run header */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 shrink-0">
+      <div className={`${BAR} flex flex-wrap items-center gap-x-3 gap-y-2 shrink-0 px-3 sm:px-4 py-2.5`}>
         <BackButton onBack={onBack} />
         <span className="font-mono text-lg font-extrabold">{run.run_number}</span>
         <span className={`chip ${state.chip}`}>{state.label}</span>
@@ -278,7 +281,7 @@ export default function RunHistory({ runNumber, user, onBack, onChanged, onSilen
 
 function SegTabs({ tabs, value, onChange, className = "" }) {
   return (
-    <div className={`flex items-center gap-1 rounded-xl bg-slate-200/70 p-1 ${className}`} role="tablist">
+    <div className={`flex items-center gap-1 ${BAR} p-1 ${className}`} role="tablist">
       {tabs.map((t) => {
         const active = value === t.id;
         return (
@@ -288,13 +291,13 @@ function SegTabs({ tabs, value, onChange, className = "" }) {
             aria-selected={active}
             onClick={() => onChange(t.id)}
             className={`flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
-              active ? "bg-white text-brand-800 shadow-sm" : "text-slate-500 hover:text-slate-800"
+              active ? "bg-brand-700 text-white shadow" : "text-slate-600 hover:bg-slate-100"
             }`}
           >
             <Icon name={t.icon} size={14} />
             {t.label}
             {t.badge > 0 && (
-              <span className={`text-[11px] font-extrabold rounded-full px-1.5 min-w-[1.2rem] ${active ? "bg-brand-100 text-brand-800" : "bg-slate-300 text-slate-700"}`}>
+              <span className={`text-[11px] font-extrabold rounded-full px-1.5 min-w-[1.2rem] ${active ? "bg-white/25 text-white" : "bg-slate-200 text-slate-700"}`}>
                 {t.badge}
               </span>
             )}

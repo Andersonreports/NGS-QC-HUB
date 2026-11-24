@@ -1,10 +1,13 @@
 import json
+import re
+from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 
 import openpyxl
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
+from fpdf import FPDF
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
@@ -226,6 +229,167 @@ def use_sample_tab(run_number: str, db: Session = Depends(get_db), user: models.
         db.commit()
         db.refresh(sheet)
     return _sheet_out(sheet, user, db)
+
+
+# ---- per-sample PDF report -----------------------------------------------------------
+
+_INFO_FIELDS = [
+    ("Sample_ID", "sampleid"), ("Sample_Name", "samplename"), ("Anderson ID", "description"),
+    ("Gen_ID", "genid"), ("Test", "test"), ("Client", "client"),
+    ("Gender_TRF", "gendertrf"), ("Gender_IGV", "genderigv"), ("Date", "date"),
+]
+_FASTP_FIELDS = [("Number of Reads", "reads"), ("Size of Reads", "size"), ("Q30", "q30"), ("Total Data Generated", "total")]
+
+
+def _pdf_text(value) -> str:
+    """The built-in PDF fonts only know Latin-1; anything else becomes '?' instead of crashing."""
+    return str(value).encode("latin-1", "replace").decode("latin-1")
+
+
+def _pdf_date(value) -> str:
+    text = str(value or "").strip()
+    m = re.match(r"^(\d{4})-(\d{1,2})-(\d{1,2})", text)
+    if m:
+        return f"{int(m.group(3)):02d}/{int(m.group(2)):02d}/{m.group(1)}"
+    return text
+
+
+def _pdf_metric(value) -> str:
+    if value is None or str(value).strip() == "":
+        return "-"
+    if isinstance(value, bool):
+        return str(value)
+    if isinstance(value, int):
+        return f"{value:,}"
+    if isinstance(value, float):
+        return f"{float(f'{value:.7g}'):,}"
+    return str(value)
+
+
+def _build_sample_pdf(run_number: str, info: list, qc_pass: str, resequencing: str, fastp: dict | None, hs: dict | None, hs_order: list) -> bytes:
+    pdf = FPDF(format="A4")
+    pdf.set_auto_page_break(auto=True, margin=16)
+    pdf.add_page()
+    width = pdf.w - pdf.l_margin - pdf.r_margin
+
+    def section(title: str) -> None:
+        pdf.ln(4)
+        pdf.set_font("Helvetica", "B", 12)
+        pdf.set_text_color(18, 85, 159)
+        pdf.cell(0, 8, _pdf_text(title), new_x="LMARGIN", new_y="NEXT")
+        pdf.set_draw_color(215, 231, 250)
+        pdf.line(pdf.l_margin, pdf.get_y(), pdf.w - pdf.r_margin, pdf.get_y())
+        pdf.ln(2)
+        pdf.set_text_color(0, 0, 0)
+
+    def pair_rows(pairs: list, cols: int = 2) -> None:
+        """Label/value pairs laid out in `cols` side-by-side columns, zebra striped."""
+        cell_w = width / cols
+        label_w, value_w = cell_w * 0.52, cell_w * 0.48
+        for i in range(0, len(pairs), cols):
+            if (i // cols) % 2 == 0:
+                pdf.set_fill_color(244, 247, 251)
+            else:
+                pdf.set_fill_color(255, 255, 255)
+            y = pdf.get_y()
+            row_h = 6.5
+            if y + row_h > pdf.h - pdf.b_margin:
+                pdf.add_page()
+                y = pdf.get_y()
+            pdf.set_xy(pdf.l_margin, y)
+            for label, value in pairs[i:i + cols]:
+                pdf.set_font("Helvetica", "", 8.5)
+                pdf.set_text_color(100, 110, 125)
+                pdf.cell(label_w, row_h, _pdf_text(label), fill=True)
+                pdf.set_font("Helvetica", "B", 9)
+                pdf.set_text_color(20, 25, 35)
+                pdf.cell(value_w, row_h, _pdf_text(value)[:38], fill=True)
+            pdf.ln(row_h)
+        pdf.set_text_color(0, 0, 0)
+
+    # header band
+    pdf.set_fill_color(11, 52, 98)
+    pdf.rect(0, 0, pdf.w, 30, style="F")
+    pdf.set_xy(pdf.l_margin, 8)
+    pdf.set_font("Helvetica", "B", 17)
+    pdf.set_text_color(255, 255, 255)
+    name = next((v for k, v in info if k == "Sample_Name" and v), "") or next((v for k, v in info if k == "Sample_ID"), "")
+    pdf.cell(0, 8, _pdf_text(name)[:70], new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", "", 9)
+    pdf.set_text_color(173, 200, 230)
+    sample_id = next((v for k, v in info if k == "Sample_ID"), "")
+    pdf.cell(0, 6, _pdf_text(f"Run {run_number}   |   {sample_id}   |   Generated {datetime.now().strftime('%d %b %Y, %H:%M')}"), new_x="LMARGIN", new_y="NEXT")
+    pdf.set_y(34)
+    pdf.set_text_color(0, 0, 0)
+
+    section("Sample Information")
+    pair_rows([(k, v or "-") for k, v in info] + [("QC Pass", qc_pass), ("Re-Sequencing", resequencing)])
+
+    section("Fastp Metrics")
+    if not fastp:
+        pdf.set_font("Helvetica", "I", 9)
+        pdf.cell(0, 7, "No Fastp metrics found for this Sample_ID.", new_x="LMARGIN", new_y="NEXT")
+    else:
+        col = width / 3
+        pdf.set_fill_color(235, 238, 243)
+        pdf.set_font("Helvetica", "B", 9)
+        for head in ("", "Before Fastp", "After Fastp"):
+            pdf.cell(col, 7, head, border=1, fill=True)
+        pdf.ln(7)
+        for label, key in _FASTP_FIELDS:
+            pdf.set_font("Helvetica", "", 9)
+            pdf.cell(col, 7, label, border=1)
+            pdf.set_font("Helvetica", "B", 9)
+            for part in ("before", "after"):
+                pdf.cell(col, 7, _pdf_text(_pdf_metric((fastp.get(part) or {}).get(key))), border=1)
+            pdf.ln(7)
+
+    section("HS Metrics")
+    if not hs:
+        pdf.set_font("Helvetica", "I", 9)
+        pdf.cell(0, 7, "No HS metrics found for this Sample_ID.", new_x="LMARGIN", new_y="NEXT")
+    else:
+        pair_rows([(name, _pdf_metric(hs.get(name))) for name in hs_order])
+
+    return bytes(pdf.output())
+
+
+@router.get("/sample-report.pdf")
+def sample_report_pdf(
+    run_number: str, row_index: int, db: Session = Depends(get_db), _user: models.User = Depends(get_current_user),
+):
+    """A one-sample PDF: sample information, QC status, Fastp before/after and every HS metric —
+    the same values the sample popup shows, read from the live sheet and the stored workbook."""
+    sheet = _sheet_or_404(db, run_number)
+    row = next((r for r in sheet.rows if r.row_index == row_index), None)
+    if not row:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "That sample no longer exists")
+
+    cells = json.loads(row.cells_json)
+    by_key = {_name_key(c): c for c in json.loads(sheet.columns_json)}
+    info = []
+    for label, key in _INFO_FIELDS:
+        raw = cells.get(by_key.get(key), "")
+        info.append((label, _pdf_date(raw) if key == "date" else str(raw or "").strip()))
+    sample_id = next((v for k, v in info if k == "Sample_ID"), "")
+
+    fastp = hs = None
+    hs_order: list = []
+    attachment = db.get(models.Attachment, sheet.source_attachment_id) if sheet.source_attachment_id else None
+    if attachment and Path(attachment.stored_path).is_file():
+        try:
+            metrics = read_sample_metrics(attachment.stored_path)
+            fastp, hs, hs_order = metrics["fastp"].get(sample_id), metrics["hs"].get(sample_id), metrics["hs_metrics"]
+        except Exception:
+            pass  # a malformed metrics tab still gets a report with the sample information
+
+    pdf_bytes = _build_sample_pdf(run_number, info, row.qc_pass, row.resequencing, fastp, hs, hs_order)
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "_", sample_id or f"row{row_index}")
+    return Response(
+        pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{run_number}_{safe}.pdf"'},
+    )
 
 
 @router.get("/sample-metrics")

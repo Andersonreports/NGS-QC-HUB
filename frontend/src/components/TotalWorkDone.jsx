@@ -64,8 +64,8 @@ export default function TotalWorkDone({ refreshKey }) {
     <section className="space-y-6">
       <header className="flex flex-wrap items-center gap-3">
         <div className="flex-1 min-w-[14rem]">
-          <h2 className="text-xl font-bold tracking-tight text-slate-900">Total work done</h2>
-          <p className="text-sm text-slate-500 mt-0.5">
+          <h2 className="text-2xl font-extrabold tracking-tight text-slate-900">Total work done</h2>
+          <p className="text-sm text-slate-600 mt-0.5">
             {meta
               ? `${meta.files_processed} of ${meta.folders_scanned} work folder${meta.folders_scanned === 1 ? "" : "s"} counted`
               : "Samples and QC across all work folders"}
@@ -195,8 +195,8 @@ function Block({ title, children }) {
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3">
-        <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500">{title}</h3>
-        <span className="h-px flex-1 bg-slate-200" />
+        <h3 className="text-xs font-bold uppercase tracking-widest text-slate-600">{title}</h3>
+        <span className="h-px flex-1 bg-slate-300/70" />
       </div>
       {children}
     </div>
