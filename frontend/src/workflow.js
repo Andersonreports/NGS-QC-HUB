@@ -106,6 +106,14 @@ export const LEGACY_STAGE_ALIAS = {
   wetlab_final_review: "pdf_head_review",
 };
 
+// Let every STAGE_BY_ID / STAGE_INDEX lookup resolve a retired stage id too. A run can
+// still carry one until the backend has restarted and migrated it, and the screens read
+// `STAGE_BY_ID[run.current_stage].role` directly, which would otherwise crash the page.
+for (const [retired, current] of Object.entries(LEGACY_STAGE_ALIAS)) {
+  STAGE_BY_ID[retired] = STAGE_BY_ID[current];
+  STAGE_INDEX[retired] = STAGE_INDEX[current];
+}
+
 export function canonicalStage(stageId) {
   return LEGACY_STAGE_ALIAS[stageId] || stageId;
 }

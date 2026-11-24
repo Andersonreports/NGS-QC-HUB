@@ -83,7 +83,7 @@ export default function SampleListDialog({ category, period, title, tone, onClos
     return samples.filter((s) => {
       if (narrow.year !== "all" && !(s.date || "").startsWith(narrow.year)) return false;
       if (narrow.month !== "all" && (s.date || "").slice(5, 7) !== narrow.month) return false;
-      return !q || [s.run, s.sample_id, s.sample_name, s.gen_id, s.test].some((v) => v && v.toLowerCase().includes(q));
+      return !q || [s.run, s.sample_id, s.sample_name, s.description, s.gen_id, s.test].some((v) => v && v.toLowerCase().includes(q));
     });
   }, [samples, query, narrow]);
 
@@ -115,7 +115,7 @@ export default function SampleListDialog({ category, period, title, tone, onClos
       } else {
         // The sheet has no matching row (e.g. it was loaded from another tab): show the
         // fields the list already has, with the Fastp / HS metrics still looked up by ID.
-        const cells = { Sample_ID: s.sample_id, Sample_Name: s.sample_name, Gen_ID: s.gen_id, Test: s.test };
+        const cells = { Sample_ID: s.sample_id, Sample_Name: s.sample_name, Description: s.description, Gen_ID: s.gen_id, Test: s.test };
         const map = Object.fromEntries(Object.keys(cells).map((c) => [nameKey(c), c]));
         setDetail({
           row: { row_index: -1, cells, qc_pass: s.qc || "—", resequencing: "—" },
@@ -168,7 +168,7 @@ export default function SampleListDialog({ category, period, title, tone, onClos
             <Icon name="search" size={15} className="absolute left-3 top-3 text-slate-400" />
             <input
               className="field pl-9"
-              placeholder="Search sample, Gen ID, test or run…"
+              placeholder="Search sample, Anderson ID, Gen ID, test or run…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               autoFocus
@@ -206,12 +206,13 @@ export default function SampleListDialog({ category, period, title, tone, onClos
               {samples.length === 0 ? "No samples to show." : "No samples match that search."}
             </p>
           ) : (
-            <table className="w-full text-sm min-w-[54rem]">
+            <table className="w-full text-sm min-w-[62rem]">
               <thead className="sticky top-0 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                 <tr className="text-left">
                   <th className="px-5 py-2.5 font-semibold w-12">#</th>
                   <th className="px-3 py-2.5 font-semibold">Sample ID</th>
                   <th className="px-3 py-2.5 font-semibold">Sample name</th>
+                  <th className="px-3 py-2.5 font-semibold">Anderson ID</th>
                   <th className="px-3 py-2.5 font-semibold">Gen ID</th>
                   <th className="px-3 py-2.5 font-semibold">Test</th>
                   <th className="px-3 py-2.5 font-semibold">Date</th>
@@ -236,6 +237,7 @@ export default function SampleListDialog({ category, period, title, tone, onClos
                       <td className="px-5 py-2.5 text-slate-400 tabular-nums">{i + 1}</td>
                       <td className="px-3 py-2.5 font-mono text-xs font-semibold text-slate-800 whitespace-nowrap">{s.sample_id || "-"}</td>
                       <td className="px-3 py-2.5 text-slate-700">{s.sample_name || "-"}</td>
+                      <td className="px-3 py-2.5 text-slate-600 whitespace-nowrap">{s.description || "-"}</td>
                       <td className="px-3 py-2.5 font-mono text-xs text-slate-600 whitespace-nowrap">{s.gen_id || "-"}</td>
                       <td className="px-3 py-2.5 text-slate-700 whitespace-nowrap">{s.test || "-"}</td>
                       <td className="px-3 py-2.5 text-slate-600 whitespace-nowrap tabular-nums">{formatDate(s.date) || "-"}</td>

@@ -212,7 +212,7 @@ function RunRow({ run, user, onViewRun }) {
           <span className="text-xs text-slate-500 truncate">
             {stageRoles(run.current_stage).length > 1
               ? "Team heads"
-              : stage.role
+              : stage?.role
               ? ROLES[stage.role]?.label
               : ""}
           </span>

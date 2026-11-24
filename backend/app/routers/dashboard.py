@@ -110,7 +110,7 @@ def _read_columns(path: Path) -> tuple[list[str], list[str], list[dict]]:
             raise ValueError(f"no '{SHEET_NAME}' worksheet")
 
         rows = wb[sheet_name].iter_rows(values_only=True)
-        test_idx = gen_idx = id_idx = name_idx = date_idx = None
+        test_idx = gen_idx = id_idx = name_idx = date_idx = desc_idx = None
         for _ in range(HEADER_SEARCH_ROWS):
             header = next(rows, None)
             if header is None:
@@ -122,6 +122,7 @@ def _read_columns(path: Path) -> tuple[list[str], list[str], list[dict]]:
                 id_idx = names.index("sampleid") if "sampleid" in names else None
                 name_idx = names.index("samplename") if "samplename" in names else None
                 date_idx = names.index("date") if "date" in names else None
+                desc_idx = names.index("description") if "description" in names else None
                 break
         if test_idx is None and gen_idx is None:
             raise ValueError("no 'test' or 'gen_id' column")
@@ -146,6 +147,7 @@ def _read_columns(path: Path) -> tuple[list[str], list[str], list[dict]]:
                 samples.append({
                     "sample_id": cell(row, id_idx),
                     "sample_name": cell(row, name_idx),
+                    "description": cell(row, desc_idx),
                     "gen_id": cell(row, gen_idx),
                     "test": cell(row, test_idx),
                     "test_norm": t,
@@ -441,6 +443,7 @@ def _qc_rows(
             "run": run_number,
             "sample_id": by_key.get("sampleid", ""),
             "sample_name": by_key.get("samplename", ""),
+            "description": by_key.get("description", ""),
             "gen_id": by_key.get("genid", ""),
             "test": by_key.get("test", ""),
             "qc": status_value,
@@ -472,6 +475,7 @@ def total_work_done_samples(
         items = [
             {
                 "run": s["run"], "sample_id": s["sample_id"], "sample_name": s["sample_name"],
+                "description": s["description"],
                 "gen_id": s["gen_id"], "test": s["test"], "qc": None, "date": s["date"],
             }
             for s in scan["samples"]

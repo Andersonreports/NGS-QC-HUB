@@ -151,7 +151,8 @@ export default function FilePreview({ source, role, onClear }) {
           scroll region (h-full + its own overflow-auto) instead of nesting two, which
           is what put the sheet's horizontal scrollbar below the last row instead of
           inside the visible viewport. */}
-      <div className="flex-1 overflow-hidden">
+      <div className="relative flex-1 min-h-0">
+       <div className="absolute inset-0 overflow-hidden">
         {state.status === "loading" && (
           <div className="h-full flex items-center justify-center text-brand-700 py-16">
             <Spinner />
@@ -193,6 +194,7 @@ export default function FilePreview({ source, role, onClear }) {
             </Alert>
           </div>
         )}
+       </div>
       </div>
     </div>
   );
