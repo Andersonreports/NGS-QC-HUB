@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from .database import get_db
 from .security import decode_access_token
+from .tenancy import current_org
 from .workflow import ADMIN_ROLE, IMPERSONATABLE_ROLES
 from . import models
 
@@ -20,7 +21,7 @@ def get_current_user(
 ) -> models.User:
     if creds is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated")
-    user_id = decode_access_token(creds.credentials)
+    user_id = decode_access_token(creds.credentials, current_org.get())
     if not user_id:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or expired token")
     user = db.get(models.User, user_id)

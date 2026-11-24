@@ -11,17 +11,17 @@ export default {
         // Blue carries structure and actions; orange carries brand and attention.
         // Both anchors come from the original flow diagram.
         brand: {
-          50: "#eef5fd",
-          100: "#d7e7fa",
-          200: "#b0cff4",
-          300: "#7fb0ea",
-          400: "#478ed8",
-          500: "#1f74c8",
-          600: "#1668c1",
-          700: "#12559f",
-          800: "#0e447f",
-          900: "#0b3462",
-          950: "#072341",
+          50: "rgb(var(--brand-50) / <alpha-value>)",
+          100: "rgb(var(--brand-100) / <alpha-value>)",
+          200: "rgb(var(--brand-200) / <alpha-value>)",
+          300: "rgb(var(--brand-300) / <alpha-value>)",
+          400: "rgb(var(--brand-400) / <alpha-value>)",
+          500: "rgb(var(--brand-500) / <alpha-value>)",
+          600: "rgb(var(--brand-600) / <alpha-value>)",
+          700: "rgb(var(--brand-700) / <alpha-value>)",
+          800: "rgb(var(--brand-800) / <alpha-value>)",
+          900: "rgb(var(--brand-900) / <alpha-value>)",
+          950: "rgb(var(--brand-950) / <alpha-value>)",
         },
         accent: {
           50: "#fdf2ec",

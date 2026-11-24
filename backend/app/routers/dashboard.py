@@ -21,7 +21,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from .. import models
-from ..config import UPLOADS_DIR
+from ..config import uploads_dir
 from ..database import get_db
 from ..deps import get_current_user
 
@@ -305,7 +305,8 @@ def _scan(db: Session) -> dict:
     seen_hashes: dict[str, str] = {}
 
     approved = _approved_run_numbers(db)
-    folders = sorted(p for p in UPLOADS_DIR.iterdir() if p.is_dir()) if UPLOADS_DIR.exists() else []
+    _root = uploads_dir()
+    folders = sorted(p for p in _root.iterdir() if p.is_dir()) if _root.exists() else []
     for folder in folders:
         if folder.name not in approved:
             skipped.append({"folder": folder.name, "reason": "pending approval"})

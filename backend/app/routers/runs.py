@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session, joinedload
 
 from .. import models, schemas
-from ..config import UPLOADS_DIR, MAX_UPLOAD_BYTES
+from ..config import uploads_dir, MAX_UPLOAD_BYTES
 from ..database import get_db
 from ..deps import get_current_user, require_role
 from ..workflow import (
@@ -270,7 +270,7 @@ def delete_run(
             path.unlink(missing_ok=True)
         except OSError:
             pass
-    shutil.rmtree(UPLOADS_DIR / run_number, ignore_errors=True)
+    shutil.rmtree(uploads_dir() / run_number, ignore_errors=True)
 
 
 @router.post("/{run_number}/advance", response_model=schemas.RunDetailOut)
@@ -353,7 +353,7 @@ async def advance_run(
         for attachment in replaced_attachments:
             db.delete(attachment)
 
-    run_dir = UPLOADS_DIR / run.run_number
+    run_dir = uploads_dir() / run.run_number
     run_dir.mkdir(parents=True, exist_ok=True)
     saved = []  # (filename, stored_path, attachment_id) — kept so the consolidated Excel can be ingested below
     for f in files:

@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from .. import models, schemas
 from ..database import get_db
 from ..deps import get_current_user
+from ..tenancy import current_org
 from ..security import verify_password, create_access_token, hash_password
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -14,7 +15,7 @@ def login(payload: schemas.LoginRequest, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.username == payload.username.strip().lower()).first()
     if not user or not user.is_active or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Incorrect username or password")
-    token = create_access_token(user.id)
+    token = create_access_token(user.id, current_org.get())
     user.real_role = user.role
     return schemas.TokenResponse(access_token=token, user=schemas.UserOut.model_validate(user))
 

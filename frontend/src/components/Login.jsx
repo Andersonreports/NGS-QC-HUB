@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api, setSession } from "../api";
+import { ORGS, currentOrgId } from "../orgs";
 import { Alert, Icon, Spinner } from "./ui";
 
 export default function Login({ onLoggedIn }) {
@@ -32,7 +33,7 @@ export default function Login({ onLoggedIn }) {
           </div>
           <div>
             <div className="text-lg font-extrabold leading-tight">Germline Exome QC Hub</div>
-            <div className="text-xs text-slate-500 font-medium">Anderson Diagnostics</div>
+            <div className="text-xs text-slate-500 font-medium">Anderson Diagnostics · {ORGS[currentOrgId()]?.name}</div>
           </div>
         </div>
 
@@ -75,6 +76,9 @@ export default function Login({ onLoggedIn }) {
             {busy ? "Signing in…" : "Sign in"}
           </button>
         </form>
+        <a href="/" className="block text-center text-xs font-semibold text-slate-500 hover:text-slate-700 mt-4">
+          ← Switch organization
+        </a>
       </div>
     </div>
   );

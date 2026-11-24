@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ROLES } from "../workflow";
 import { Icon, timeAgo } from "./ui";
+import { ORGS, currentOrgId } from "../orgs";
 
 /**
  * Three clearly separate zones:
@@ -62,7 +63,7 @@ export default function TopBar({
               <div className="text-left min-w-0">
                 <div className="text-[0.95rem] min-[420px]:text-base sm:text-xl lg:text-[1.35rem] font-extrabold tracking-tight leading-tight sm:leading-none truncate bg-gradient-to-r from-white to-brand-100 bg-clip-text text-transparent">Germline Exome QC Hub</div>
                 <div className="hidden min-[420px]:block text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.16em] text-accent-200 mt-1 sm:mt-1.5 truncate">
-                  Anderson Diagnostics
+                  Anderson Diagnostics · {ORGS[currentOrgId()]?.name}
                 </div>
               </div>
             </div>

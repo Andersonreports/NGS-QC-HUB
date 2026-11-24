@@ -1,6 +1,10 @@
 backend/.venv/
 backend/data/
+backend/data-cmc/
 backend/.env
+backend/.env.example
+backend/.env.example
+backend/.env.example/
 backend/server.log
 __pycache__/
 *.pyc

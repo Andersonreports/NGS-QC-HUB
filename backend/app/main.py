@@ -5,28 +5,49 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from .database import Base, engine
+from .database import Base, engines
+from .tenancy import ORG_IDS, DEFAULT_ORG, current_org, normalize_org
 from .migrations import run_migrations
 from .routers import auth, runs, notifications, admin, sheets, reports, dashboard
 from .seed import seed_default_accounts, sync_seed_display_names, ensure_admin_account
 from .database import SessionLocal
 from .file_naming import rename_existing_consolidated_files
 
-Base.metadata.create_all(bind=engine)
-run_migrations(engine)
-seed_default_accounts()
-sync_seed_display_names()
-ensure_admin_account()
+def _init_org(org: str):
+    token = current_org.set(org)
+    try:
+        Base.metadata.create_all(bind=engines[org])
+        run_migrations(engines[org])
+        seed_default_accounts()
+        sync_seed_display_names()
+        ensure_admin_account()
 
-# Files uploaded before the "_consolidated" naming rule existed get renamed once.
-_db = SessionLocal()
-try:
-    for _change in rename_existing_consolidated_files(_db):
-        print("Renamed consolidated Excel:", _change)
-finally:
-    _db.close()
+        # Files uploaded before the "_consolidated" naming rule existed get renamed once.
+        _db = SessionLocal()
+        try:
+            for _change in rename_existing_consolidated_files(_db):
+                print("Renamed consolidated Excel:", _change)
+        finally:
+            _db.close()
+    finally:
+        current_org.reset(token)
+
+
+for _org in ORG_IDS:
+    _init_org(_org)
 
 app = FastAPI(title="Germline Exome QC Hub API")
+
+@app.middleware("http")
+async def select_organization(request, call_next):
+    """Scope the whole request to one organization's data, from the X-Org header."""
+    org = normalize_org(request.headers.get("x-org")) or DEFAULT_ORG
+    token = current_org.set(org)
+    try:
+        return await call_next(request)
+    finally:
+        current_org.reset(token)
+
 
 app.add_middleware(
     CORSMiddleware,

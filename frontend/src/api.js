@@ -1,6 +1,13 @@
-const TOKEN_KEY = "ngsqc_token";
-const USER_KEY = "ngsqc_user";
-const ACTING_ROLE_KEY = "ngsqc_acting_role";
+import { currentOrgId } from "./orgs";
+
+// Each organization is its own environment: its own API scope (X-Org header) and its
+// own stored session, so signing in to one never carries over to the other. NGS keeps
+// the original storage keys.
+const ORG = currentOrgId() || "ngs";
+const SUFFIX = ORG === "ngs" ? "" : `_${ORG}`;
+const TOKEN_KEY = `ngsqc_token${SUFFIX}`;
+const USER_KEY = `ngsqc_user${SUFFIX}`;
+const ACTING_ROLE_KEY = `ngsqc_acting_role${SUFFIX}`;
 
 // Same-origin in production (FastAPI serves the built frontend); Vite dev proxies /api.
 const BASE = "";
@@ -45,7 +52,7 @@ export function setActingRole(role) {
 
 /** Authorization + act-as headers for raw fetch() calls (file downloads, previews). */
 export function authHeaders() {
-  const headers = {};
+  const headers = { "X-Org": ORG };
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
   const actingRole = getActingRole();
@@ -54,7 +61,7 @@ export function authHeaders() {
 }
 
 async function request(path, { method = "GET", json, form, auth = true } = {}) {
-  const headers = {};
+  const headers = { "X-Org": ORG };
   if (auth) {
     const token = getToken();
     if (token) headers.Authorization = `Bearer ${token}`;

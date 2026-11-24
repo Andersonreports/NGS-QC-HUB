@@ -3,6 +3,45 @@
 @tailwind utilities;
 
 @layer base {
+  /* Root scale. Every Tailwind size (text, padding, gaps, widths, radii) is in rem, so
+     tuning the root font size rescales the whole UI proportionally and in one place.
+     Phones keep the full 16px for touch targets; tablets sit slightly under; laptops
+     (typically 1280-1600 CSS px wide, e.g. a 1080p screen at 125% OS scaling) ramp
+     smoothly from 13px up to the full 16px at 1920px, so large monitors look exactly
+     as before and there is no hard jump between breakpoints. */
+  html { font-size: 16px; }
+  @media (min-width: 768px) { html { font-size: 15px; } }
+  @media (min-width: 1100px) { html { font-size: 13px; } }
+  @media (min-width: 1280px) {
+    html { font-size: clamp(13px, calc(13px + (100vw - 1280px) * 3 / 640), 16px); }
+  }
+  /* Brand palette per organization: same design, organization-specific colors. */
+  :root {
+    --brand-50: 238 245 253;
+    --brand-100: 215 231 250;
+    --brand-200: 176 207 244;
+    --brand-300: 127 176 234;
+    --brand-400: 71 142 216;
+    --brand-500: 31 116 200;
+    --brand-600: 22 104 193;
+    --brand-700: 18 85 159;
+    --brand-800: 14 68 127;
+    --brand-900: 11 52 98;
+    --brand-950: 7 35 65;
+  }
+  :root[data-org="cmc"] {
+    --brand-50: 239 250 248;
+    --brand-100: 211 243 238;
+    --brand-200: 169 229 220;
+    --brand-300: 116 208 197;
+    --brand-400: 63 180 168;
+    --brand-500: 31 154 143;
+    --brand-600: 23 127 119;
+    --brand-700: 18 102 95;
+    --brand-800: 15 80 76;
+    --brand-900: 13 65 62;
+    --brand-950: 6 39 38;
+  }
   body {
     @apply text-slate-900 font-sans antialiased;
     /* Site-wide background image: a pale wash keeps content readable, the image
