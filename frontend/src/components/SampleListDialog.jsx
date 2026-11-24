@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { api, downloadSampleList } from "../api";
+import { api, downloadSampleList, downloadSampleReport } from "../api";
 import PeriodFilter, { periodLabel } from "./PeriodFilter";
 import { SampleModal } from "./SamplePreview";
 import { Alert, Icon, Spinner } from "./ui";
@@ -138,7 +138,7 @@ export default function SampleListDialog({ category, period, title, tone, onClos
 
       if (row) {
         const map = Object.fromEntries(columns.map((c) => [nameKey(c), c]));
-        setDetail({ row, idCol: map.sampleid, colFor: (k) => map[k], metrics });
+        setDetail({ run: s.run, row, idCol: map.sampleid, colFor: (k) => map[k], metrics });
       } else {
         // The sheet has no matching row (e.g. it was loaded from another tab): show the
         // fields the list already has, with the Fastp / HS metrics still looked up by ID.
@@ -345,6 +345,11 @@ export default function SampleListDialog({ category, period, title, tone, onClos
           saving={NOT_SAVING}
           onChange={NO_OP}
           onClose={() => setDetail(null)}
+          onDownloadPdf={
+            detail.row.row_index >= 0
+              ? () => downloadSampleReport(detail.run, detail.row.row_index, detail.row.cells[detail.idCol])
+              : undefined
+          }
           footerNote="QC status is changed from the run's My Work page."
         />
       )}
