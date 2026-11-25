@@ -12,6 +12,13 @@ if not exist frontend\dist (
   popd
 )
 
+if not exist backend\vswarehouse\node_modules (
+  echo Installing token monitor dependencies...
+  pushd backend\vswarehouse
+  call npm install || exit /b 1
+  popd
+)
+
 cd backend
 if not exist .venv\Scripts\activate.bat (
   echo Creating Python virtual environment...

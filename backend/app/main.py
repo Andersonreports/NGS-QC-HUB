@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -8,7 +9,8 @@ from fastapi.responses import FileResponse
 from .database import Base, engines
 from .tenancy import ORG_IDS, DEFAULT_ORG, current_org, normalize_org
 from .migrations import run_migrations
-from .routers import auth, runs, notifications, admin, sheets, reports, dashboard, qc_report
+from .routers import auth, runs, notifications, admin, sheets, reports, dashboard, qc_report, vswarehouse
+from . import vswarehouse_service
 from .seed import seed_default_accounts, sync_seed_display_names, ensure_admin_account
 from .database import SessionLocal
 from .file_naming import rename_existing_consolidated_files
@@ -36,7 +38,16 @@ def _init_org(org: str):
 for _org in ORG_IDS:
     _init_org(_org)
 
-app = FastAPI(title="Germline Exome QC Hub API")
+@asynccontextmanager
+async def lifespan(_app):
+    vswarehouse_service.start()
+    try:
+        yield
+    finally:
+        vswarehouse_service.stop()
+
+
+app = FastAPI(title="Germline Exome QC Hub API", lifespan=lifespan)
 
 @app.middleware("http")
 async def select_organization(request, call_next):
@@ -64,6 +75,7 @@ app.include_router(admin.router)
 app.include_router(sheets.router)
 app.include_router(reports.router)
 app.include_router(qc_report.router)
+app.include_router(vswarehouse.router)
 app.include_router(dashboard.router)
 
 FRONTEND_DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"

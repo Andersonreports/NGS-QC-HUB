@@ -250,3 +250,23 @@ cd frontend && npm run dev
 ```
 
 After changing the frontend, rebuild so the served app picks it up: `cd frontend && npm run build`.
+
+## VSWarehouse Token Monitor
+
+Choosing an organization on the landing page offers **Germline** or **VSWarehouse** (not a navbar tab); VSWarehouse Token Monitor lives at
+`/cmc/vswarehouse` and `/ngs/vswarehouse`. It shows that organization's own Golden Helix token
+usage (uploaded usage CSV) and live Google Sheet, and downloads its own PDF report. The
+organization always comes from the signed-in session, so CMC and NGS data never mix. Everyone
+signed in can view; uploading/deleting CSVs is limited to Primary Team and the team heads.
+
+The monitor's logic is Node code in `backend/vswarehouse`, started automatically (loopback only)
+by the backend — Node.js must be installed; `start.sh`/`start.bat` run `npm install` there on
+first start. Configure it in `backend/.env` (never committed):
+
+```
+VSW_CMC_LICENSE_KEY=...   VSW_CMC_SHEET_ID=...
+VSW_NGS_LICENSE_KEY=...   VSW_NGS_SHEET_ID=...
+# optional: VSW_CMC_TOKENS_TOTAL / VSW_NGS_TOKENS_TOTAL (default 6000), VSW_PORT (default 4173)
+```
+
+Its data (uploaded CSVs per organization) lives in `backend/vswarehouse/data`.

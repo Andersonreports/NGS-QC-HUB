@@ -19,6 +19,11 @@ echo "  For everyone on LAN:  http://${LAN_IP}:${PORT}"
 echo "  Press Ctrl+C to stop."
 echo
 
+if [ ! -d backend/vswarehouse/node_modules ]; then
+  echo "Installing token monitor dependencies..."
+  (cd backend/vswarehouse && npm install)
+fi
+
 cd backend
 source .venv/bin/activate
 exec uvicorn app.main:app --host 0.0.0.0 --port "${PORT}"

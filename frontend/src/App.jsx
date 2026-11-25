@@ -15,6 +15,8 @@ import Toasts from "./components/Toasts";
 import TopBar from "./components/TopBar";
 import TransferForm from "./components/TransferForm";
 import UnreadDigest from "./components/UnreadDigest";
+import VSWarehouse from "./components/VSWarehouse";
+import { currentOrgId } from "./orgs";
 import { Alert } from "./components/ui";
 
 const POLL_MS = 10000;
@@ -33,6 +35,16 @@ const DEFAULT_ACTING_ROLE = "wetlab";
  * role is "admin"; `role` may be a role it is currently acting as. */
 function isAdminUser(u) {
   return !!u && (u.real_role === "admin" || u.role === "admin");
+}
+
+/** The token monitor has its own address (/cmc/vswarehouse, /ngs/vswarehouse) so it survives
+ * refresh and direct links; every other tab stays on the organization's base path. */
+const VSW_TAB = "vswarehouse";
+function isVswPath(pathname = window.location.pathname) {
+  return pathname.split("/").filter(Boolean)[1]?.toLowerCase() === VSW_TAB;
+}
+function pathForTab(id) {
+  return `/${currentOrgId()}${id === VSW_TAB ? `/${VSW_TAB}` : ""}`;
 }
 
 function defaultTabFor(user) {
@@ -56,7 +68,18 @@ export default function App() {
   const [notifications, setNotifications] = useState([]);
   const [toasts, setToasts] = useState([]);
   const [unreadDigest, setUnreadDigest] = useState([]);
-  const [tab, setTab] = useState(() => defaultTabFor(user));
+  const [tab, setTabState] = useState(() => (isVswPath() ? VSW_TAB : defaultTabFor(user)));
+  const setTab = useCallback((id) => {
+    setTabState(id);
+    const target = pathForTab(id);
+    if (window.location.pathname.replace(/\/$/, "") !== target) window.history.pushState(null, "", target);
+  }, []);
+  // Browser back/forward between the workspace and the token monitor.
+  useEffect(() => {
+    const onPop = () => setTabState((t) => (isVswPath() ? VSW_TAB : t === VSW_TAB ? defaultTabFor(getStoredUser()) : t));
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
   const [viewingRun, setViewingRun] = useState(null);
   const [loadError, setLoadError] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -190,7 +213,7 @@ export default function App() {
             setTab(defaultTabFor({ role }));
           } else {
             setUser(u);
-            setTab(defaultTabFor(u));
+            setTab(isVswPath() ? VSW_TAB : defaultTabFor(u));
           }
         }}
       />
@@ -201,6 +224,12 @@ export default function App() {
   // they're acting as, for everyone else their own role. Because the whole app keys
   // off `user.role`, swapping in the acting role here (and sending the matching
   // header from the API layer) makes every screen and action behave as that role.
+  // VSWarehouse is its own site: no Germline header, tabs or notifications around it.
+  // (It still needs the sign-in above, since access is checked by the same login.)
+  if (tab === VSW_TAB) {
+    return <VSWarehouse onBack={() => window.location.assign("/")} />;
+  }
+
   const isAdmin = isAdminUser(user);
   const effUser = isAdmin ? { ...user, role: actingRole } : user;
 

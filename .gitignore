@@ -19,3 +19,4 @@ frontend/dist/
 photo_*.jpg
 photo_*.png
 .~lock.*
+backend/vswarehouse.log

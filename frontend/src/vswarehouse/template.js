@@ -1,0 +1,259 @@
+// Markup of the original module page (module.html body), unchanged except the Back control.
+export default `<div class="top-accent"></div>
+<div class="page">
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4c0 4 8 4 8 8s-8 4-8 8"/><path d="M16 4c0 4-8 4-8 8s8 4 8 8"/><path d="M8.5 7h7M8 12h8M8.5 17h7"/></svg>
+      </div>
+      <div>
+        <h1 id="module-title">VSWarehouse Token Monitor</h1>
+        <div class="org-line" id="org-name">Loading&hellip;</div>
+      </div>
+    </div>
+
+    <div class="header-tabs">
+      <div class="org-tabs" id="source-tabs">
+        <button class="org-tab active" id="tab-csv" data-source="csv">CSV Report</button>
+        <button class="org-tab" id="tab-excel" data-source="excel">Excel Report</button>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <div id="csv-actions" class="header-actions" hidden>
+        <button id="upload-btn" class="primary">
+          <svg viewBox="0 0 16 16" fill="none"><path d="M8 10.5V3M8 3L5 6M8 3l3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 11v1.5A1.5 1.5 0 004.5 14h7a1.5 1.5 0 001.5-1.5V11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <span>Upload CSV</span>
+        </button>
+        <input type="file" id="upload-input" accept=".csv,text/csv" hidden />
+        <button id="manage-btn" class="danger" hidden>
+          <svg viewBox="0 0 16 16" fill="none"><path d="M3 4.5h10M6.5 4.5V3.5A1 1 0 017.5 2.5h1a1 1 0 011 1v1M4 4.5l.6 8A1.5 1.5 0 006.1 14h3.8a1.5 1.5 0 001.5-1.5l.6-8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.5 7v4M9.5 7v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <span>Manage CSVs</span>
+        </button>
+        <button id="download-btn">
+          <svg viewBox="0 0 16 16" fill="none"><path d="M4 2.5h6l2.5 2.5v8.5H4v-11z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 6v4.5M8 10.5L6 8.5M8 10.5l2-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>Download Report</span>
+        </button>
+      </div>
+
+      <div id="excel-actions" class="header-actions" hidden>
+        <span class="source-badge">
+          <svg viewBox="0 0 16 16" fill="none"><path d="M2 4.5A1.5 1.5 0 013.5 3h9A1.5 1.5 0 0114 4.5v7A1.5 1.5 0 0112.5 13h-9A1.5 1.5 0 012 11.5v-7z" stroke="currentColor" stroke-width="1.4"/><path d="M2 6.5h12M6 6.5V13" stroke="currentColor" stroke-width="1.4"/></svg>
+          Live Google Sheet
+        </span>
+        <button id="refresh-btn">
+          <svg viewBox="0 0 16 16" fill="none"><path d="M13.5 8a5.5 5.5 0 11-1.7-3.98M13.5 2.5v3h-3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>Refresh</span>
+        </button>
+        <a id="open-sheet-link" class="btn primary" href="#" target="_blank" rel="noopener">
+          <svg viewBox="0 0 16 16" fill="none"><path d="M6.5 3H3.5A1.5 1.5 0 002 4.5v8A1.5 1.5 0 003.5 14h8a1.5 1.5 0 001.5-1.5v-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.5 2H14v4.5M14 2L7.5 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>Open sheet</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <button type="button" class="home-link" id="home-link">
+    <svg viewBox="0 0 16 16" fill="none"><path d="M2.5 8L8 3l5.5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 7v6h8V7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Back
+  </button>
+
+  <div class="upload-status" id="upload-status" hidden></div>
+  <div class="fetch-error" id="fetch-error" hidden></div>
+
+  <div class="reconcile" id="reconcile-panel" hidden>
+    <div class="reconcile-head">
+      <span class="reconcile-badge" id="reconcile-badge"></span>
+      <span class="reconcile-scope" id="reconcile-scope"></span>
+    </div>
+    <ul class="reconcile-list" id="reconcile-list"></ul>
+  </div>
+
+  <div class="stat-row">
+    <div class="stat-tile">
+      <div class="stat-icon-big icon-total">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <ellipse cx="12" cy="6" rx="8" ry="3"/>
+          <path d="M4 6v6c0 1.66 3.58 3 8 3s8-1.34 8-3V6"/>
+          <path d="M4 12v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6"/>
+        </svg>
+      </div>
+      <div class="stat-text">
+        <div class="label">Total Tokens</div>
+        <div class="stat-main">
+          <div class="value" id="stat-total">&mdash;</div>
+        </div>
+      </div>
+    </div>
+    <div class="stat-tile">
+      <div class="stat-icon-big icon-consumed">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8l5 5 3-3 8 8"/><path d="M20 12v6h-6"/></svg>
+      </div>
+      <div class="stat-text">
+        <div class="label">Consumed</div>
+        <div class="stat-main">
+          <div class="value" id="stat-consumed">&mdash;</div>
+          <div class="stat-delta" id="stat-consumed-delta"></div>
+        </div>
+      </div>
+    </div>
+    <div class="stat-tile">
+      <div class="stat-icon-big icon-available">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <defs>
+            <clipPath id="db-half-clip"><path d="M4 6c0-1.66 3.58-3 8-3s8 1.34 8 3v12c0 1.66-3.58 3-8 3s-8-1.34-8-3V6z"/></clipPath>
+          </defs>
+          <rect x="3" y="13" width="18" height="9" fill="currentColor" opacity="0.55" clip-path="url(#db-half-clip)"/>
+          <ellipse cx="12" cy="6" rx="8" ry="3"/>
+          <path d="M4 6v6c0 1.66 3.58 3 8 3s8-1.34 8-3V6"/>
+          <path d="M4 12v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6"/>
+        </svg>
+      </div>
+      <div class="stat-text">
+        <div class="label">Available Tokens</div>
+        <div class="stat-main">
+          <div class="value" id="stat-available">&mdash;</div>
+          <div class="sub" id="stat-available-sub"></div>
+        </div>
+      </div>
+    </div>
+    <div class="stat-tile">
+      <div class="stat-icon-big icon-usage">
+        <svg class="speedo" viewBox="0 0 120 70">
+          <path id="usage-meter-track" d="M 12,58 A 48,48 0 0,1 108,58" fill="none" stroke="var(--grid)" stroke-width="11" stroke-linecap="round"/>
+          <path id="usage-meter-fill" d="M 12,58 A 48,48 0 0,1 108,58" fill="none" stroke="var(--series-3)" stroke-width="11" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="stat-text">
+        <div class="label">Usage</div>
+        <div class="stat-main">
+          <div class="value" id="stat-usage">&mdash;</div>
+          <div class="sub" id="stat-usage-sub"></div>
+        </div>
+      </div>
+    </div>
+    <div class="stat-tile excel-only">
+      <div class="stat-icon-big icon-days">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9.5h18M8 3v3M16 3v3"/></svg>
+      </div>
+      <div class="stat-text">
+        <div class="label">Days Remaining</div>
+        <div class="stat-main">
+          <div class="value" id="stat-days-remaining">&mdash;</div>
+        </div>
+      </div>
+    </div>
+    <div class="stat-tile excel-only">
+      <div class="stat-icon-big icon-expiry">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
+      </div>
+      <div class="stat-text">
+        <div class="label">License Valid Until</div>
+        <div class="stat-main">
+          <div class="value" id="stat-license-expiry">&mdash;</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+    <div class="dashboard-sections">
+      <div class="panel" id="section-reports-table">
+        <h2 id="reports-table-title">Updated reports</h2>
+        <div class="table-scroll">
+          <table id="reports-table">
+            <thead id="reports-table-head">
+              <tr><th>Report Date</th><th>File</th><th>Consumed</th><th>Total</th><th>Available</th><th>Usage</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel-grid split-wide" id="section-burn-trend">
+        <div class="panel" id="panel-user-trend">
+          <h2>Tokens consumed by user</h2>
+          <div class="panel-sub" id="user-trend-sub"></div>
+          <div class="cat-legend" id="user-trend-legend"></div>
+          <div class="chart-wrap">
+            <svg id="user-trend-svg" viewBox="0 0 900 220" preserveAspectRatio="none"></svg>
+            <div class="tooltip" id="user-trend-tooltip"></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head-row">
+            <h2>Daily token burn</h2>
+            <select class="month-select" id="month-filter"><option value="all">All time</option></select>
+          </div>
+          <div class="panel-sub" id="trend-sub"></div>
+          <div class="cat-legend" id="trend-legend"></div>
+          <div class="chart-wrap">
+            <svg id="trend-svg" viewBox="0 0 900 220" preserveAspectRatio="none"></svg>
+            <div class="tooltip" id="trend-tooltip"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-grid split-even" id="section-categories-days">
+        <div class="panel">
+          <h2>Sample-wise breakdown</h2>
+          <div class="panel-sub" id="category-sub"></div>
+          <div class="mini-stats" id="mini-stats"></div>
+          <div class="cat-legend" id="cat-legend"></div>
+          <div id="cat-bars"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Samples by day</h2>
+          <div class="panel-sub" id="day-sub"></div>
+          <div class="cat-legend" id="day-legend"></div>
+          <div class="chart-wrap">
+            <svg id="day-svg" viewBox="0 0 900 220" preserveAspectRatio="none"></svg>
+            <div class="tooltip" id="day-tooltip"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" id="section-samples">
+        <h2>Latest report samples</h2>
+        <div class="table-scroll">
+          <table id="samples-table">
+            <thead>
+              <tr><th>Date</th><th>Sample Hash</th><th>Variant Count</th><th>Sample Type</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+</div>
+<div class="modal-overlay" id="uploads-modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="uploads-modal-title">
+    <div class="modal-head">
+      <h2 id="uploads-modal-title">Uploaded CSV files</h2>
+      <button class="modal-close" id="uploads-close" aria-label="Close">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <p class="modal-sub">Deleting an upload rebuilds the totals from the files that remain; when two uploads share a date, the most recent upload's counts win. Deletes are recoverable — use <strong>Undo last delete</strong> to bring the last one back.</p>
+    <div class="uploads-list" id="uploads-list"></div>
+    <div class="modal-foot">
+      <button id="uploads-undo" hidden>
+        <svg viewBox="0 0 16 16" fill="none"><path d="M4 7h6.5a3 3 0 010 6H6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 4L3 7l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span id="uploads-undo-label">Undo last delete</span>
+      </button>
+      <button class="danger" id="uploads-delete-all">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M3 4.5h10M6.5 4.5V3.5A1 1 0 017.5 2.5h1a1 1 0 011 1v1M4 4.5l.6 8A1.5 1.5 0 006.1 14h3.8a1.5 1.5 0 001.5-1.5l.6-8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.5 7v4M9.5 7v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <span>Delete all</span>
+      </button>
+    </div>
+  </div>
+</div>
+<div class="drop-overlay" id="drop-overlay" hidden>
+  <div class="drop-card">
+    <svg viewBox="0 0 24 24" fill="none"><path d="M12 15V4M12 4L7 9M12 4l5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    Drop usage CSV to upload
+  </div>
+</div>
+`;
