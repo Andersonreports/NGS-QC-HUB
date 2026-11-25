@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse
 from .database import Base, engines
 from .tenancy import ORG_IDS, DEFAULT_ORG, current_org, normalize_org
 from .migrations import run_migrations
-from .routers import auth, runs, notifications, admin, sheets, reports, dashboard
+from .routers import auth, runs, notifications, admin, sheets, reports, dashboard, qc_report
 from .seed import seed_default_accounts, sync_seed_display_names, ensure_admin_account
 from .database import SessionLocal
 from .file_naming import rename_existing_consolidated_files
@@ -63,6 +63,7 @@ app.include_router(notifications.router)
 app.include_router(admin.router)
 app.include_router(sheets.router)
 app.include_router(reports.router)
+app.include_router(qc_report.router)
 app.include_router(dashboard.router)
 
 FRONTEND_DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"

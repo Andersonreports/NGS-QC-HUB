@@ -7,6 +7,7 @@ import ApprovalStatus from "./components/ApprovalStatus";
 import Login from "./components/Login";
 import MonthlyReport from "./components/MonthlyReport";
 import Overview from "./components/Overview";
+import QCReport from "./components/QCReport";
 import PendingRuns from "./components/PendingRuns";
 import RunHistory from "./components/RunHistory";
 import Toasts from "./components/Toasts";
@@ -21,6 +22,9 @@ const POLL_MS = 10000;
 /** Roles that land on the Overview dashboard after signing in. Wet Lab goes
  * straight to the work queue, where it starts new transfers. */
 const OVERVIEW_ROLES = ["primary_team", "primary_head", "bioinfo_head"];
+
+/** Roles that may open the QC Report (the backend enforces the same list). */
+const QC_REPORT_ROLES = ["primary_head", "bioinfo_head"];
 
 // The role an admin acts as by default when they first sign in.
 const DEFAULT_ACTING_ROLE = "wetlab";
@@ -210,6 +214,7 @@ export default function App() {
     ...(OVERVIEW_ROLES.includes(effUser.role) ? [{ id: "overview", label: "Dashboard", icon: "flask" }] : []),
     { id: "work", label: "My work", badge: pendingCount, icon: "clock" },
     { id: "monthly", label: "Monthly Report", icon: "file" },
+    ...(QC_REPORT_ROLES.includes(effUser.role) ? [{ id: "qcreport", label: "QC Report", icon: "file" }] : []),
     ...(effUser.role === "primary_head" ? [{ id: "admin", label: "User Management", icon: "users" }] : []),
   ];
   return (
@@ -263,8 +268,12 @@ export default function App() {
           />
         ) : tab === "monthly" ? (
           <MonthlyReport user={effUser} onViewRun={setViewingRun} />
-        ) : (
+        ) : tab === "qcreport" && QC_REPORT_ROLES.includes(effUser.role) ? (
+          <QCReport onViewRun={setViewingRun} />
+        ) : effUser.role === "primary_head" ? (
           <AdminUsers />
+        ) : (
+          <WorkView user={effUser} runs={runs} onViewRun={setViewingRun} onChanged={afterChange} pushToast={pushToast} />
         )}
       </main>
 

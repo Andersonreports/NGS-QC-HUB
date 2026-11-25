@@ -177,6 +177,8 @@ export const api = {
     request(`/api/reports/monthly/${encodeURIComponent(runNumber)}/cell`, { method: "PATCH", json: { field, value } }),
   monthlyReportExportUrl: (year, month) => `${BASE}/api/reports/monthly/export.xlsx?year=${year}&month=${month}`,
 
+  getQCReportRuns: () => request("/api/qc-report/runs"),
+
   listUsers: () => request("/api/admin/users"),
   createUser: (payload) => request("/api/admin/users", { method: "POST", json: payload }),
   deactivateUser: (id) => request(`/api/admin/users/${id}/deactivate`, { method: "POST" }),
@@ -297,6 +299,37 @@ export async function downloadAttachment(runNumber, attachmentId, filename) {
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/** Download the QC Report PDF for the chosen runs and columns. */
+export async function downloadQCReport(runNumbers, columns) {
+  const res = await fetch(`${BASE}/api/qc-report/pdf`, {
+    method: "POST",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ run_numbers: runNumbers, columns }),
+  });
+  if (!res.ok) {
+    let detail = "Could not create the QC report.";
+    try {
+      const data = await res.json();
+      if (typeof data.detail === "string") detail = data.detail;
+    } catch {
+      /* keep default */
+    }
+    throw new Error(detail);
+  }
+  if (!(res.headers.get("content-type") || "").includes("application/pdf")) {
+    throw new Error("The server did not return a PDF. Restart the backend and try again.");
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `QC_Report_${new Date().toISOString().slice(0, 10)}.pdf`;
   document.body.appendChild(a);
   a.click();
   a.remove();
