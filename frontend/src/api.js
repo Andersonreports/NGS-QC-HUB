@@ -172,6 +172,8 @@ export const api = {
   totalWorkDoneExportUrl: (format, period) =>
     `${BASE}/api/dashboard/total-work-done/export${periodQuery(period, { format })}`,
 
+  getAnalysis: () => request("/api/dashboard/analysis"),
+
   getMonthlyReport: (year, month) => request(`/api/reports/monthly?year=${year}&month=${month}`),
   editMonthlyReportCell: (runNumber, field, value) =>
     request(`/api/reports/monthly/${encodeURIComponent(runNumber)}/cell`, { method: "PATCH", json: { field, value } }),

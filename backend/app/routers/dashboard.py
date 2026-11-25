@@ -692,3 +692,68 @@ def export_total_work_done_samples(
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# ---------------------------------------------------------------- analysis (charts)
+
+def _test_category(t: str) -> str:
+    """One bucket per sample for the analysis charts (the headline cards may overlap;
+    charts need each sample counted once)."""
+    if t in ("WES", "WHOLE EXOME SEQUENCING"):
+        return "WES"
+    if _WES_MITO.match(t):
+        return "WES + Mito"
+    if "WGS" in t:
+        return "WGS"
+    if "PANEL" in t:
+        return "Panel"
+    if "CES" in t:
+        return "CES"
+    if "MITO" in t or "MITTO" in t:
+        return "Mito"
+    return "Others"
+
+
+@router.get("/analysis")
+def analysis(db: Session = Depends(get_db), _: models.User = Depends(get_current_user)):
+    """Per-run figures for the Analysis charts, broken down by the day of each sample's
+    own Date (a run's samples can span several months, so a run is never pinned to one
+    month). Each approved run carries `days`: {"YYYY-MM-DD" or "": {total, pass, fail,
+    resequence, tests}}; "" holds samples with no readable date. The page filters by
+    year / month / run and aggregates client-side."""
+    scan = _scan(db)
+    days_by_run: dict[str, dict[str, dict]] = {}
+
+    def bucket(run_number: str, iso: str) -> dict:
+        return days_by_run.setdefault(run_number, {}).setdefault(
+            iso, {"total": 0, "pass": 0, "fail": 0, "resequence": 0, "tests": {}},
+        )
+
+    for s in scan["samples"]:
+        b = bucket(s["run"], s["date"])
+        if s["has_test"]:
+            b["total"] += 1
+            cat = _test_category(s["test_norm"])
+            b["tests"][cat] = b["tests"].get(cat, 0) + 1
+        if s["is_reseq"]:
+            b["resequence"] += 1
+
+    if scan["processed"]:
+        for run_number, status_value, cells_json in (
+            db.query(models.Run.run_number, models.SheetRow.qc_pass, models.SheetRow.cells_json)
+            .join(models.Sheet, models.Sheet.run_id == models.Run.id)
+            .join(models.SheetRow, models.SheetRow.sheet_id == models.Sheet.id)
+            .filter(models.Run.run_number.in_(scan["processed"]))
+            .all()
+        ):
+            if status_value in ("Pass", "Fail"):
+                bucket(run_number, _row_date(cells_json)[2])[status_value.lower()] += 1
+
+    created = {r.run_number: r.created_at for r in db.query(models.Run).all()}
+    runs = []
+    for run_number in scan["processed"]:
+        days = days_by_run.get(run_number, {})
+        fallback = created[run_number].strftime("%Y-%m-%d") if created.get(run_number) else ""
+        runs.append({"run": run_number, "fallback_date": fallback, "days": days})
+    runs.sort(key=lambda r: r["run"])
+    return {"runs": runs}

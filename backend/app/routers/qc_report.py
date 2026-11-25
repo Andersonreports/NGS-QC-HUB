@@ -241,33 +241,46 @@ def _build_pdf(sections: list[tuple[models.Run, list[dict]]], keys: list[str], g
     pdf.set_auto_page_break(auto=True, margin=footer_h + 12)
     pdf.add_page()
 
-    total = sum(len(p[1]) for p in plans)
-    pdf.set_font("Helvetica", "B", 15)
-    pdf.set_text_color(11, 52, 98)
-    pdf.cell(0, 8, "QC Report", new_x="LMARGIN", new_y="NEXT")
-    pdf.set_font("Helvetica", "", 8.5)
+    x0 = pdf.l_margin
+
+    # ---- title block: centred title, thin rule; generation date in the top-right corner ----
+    y = pdf.get_y()
+    pdf.set_xy(x0, y + 1.5)
+    pdf.set_font("Helvetica", "", 8)
     pdf.set_text_color(100, 100, 100)
-    pdf.cell(0, 5, _pdf_text("  |  ".join([
-        f"{len(plans)} run{'' if len(plans) == 1 else 's'}",
-        f"{total:,} sample{'' if total == 1 else 's'}",
-        f"Generated {datetime.now().strftime('%d %b %Y, %H:%M')}",
-        f"By {generated_by}",
-    ])), new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(3)
+    pdf.cell(usable, 5, _pdf_text(f"Generated on: {datetime.now().strftime('%d %b %Y, %H:%M')}"), align="R")
+    pdf.set_xy(x0, y)
+    pdf.set_font("Helvetica", "B", 17)
+    pdf.set_text_color(11, 52, 98)
+    pdf.cell(usable, 9, "QC REPORT", align="C", new_x="LMARGIN", new_y="NEXT")
+    y = pdf.get_y() + 1
+    pdf.set_draw_color(240, 130, 30)
+    pdf.set_line_width(0.7)
+    pdf.line(x0 + usable * 0.4, y, x0 + usable * 0.6, y)
+    pdf.set_y(y + 7)
 
     for run, rows, cols, bounds in plans:
         if pdf.will_page_break(30):
             pdf.add_page()
-        pdf.set_font("Helvetica", "B", 11)
-        pdf.set_text_color(11, 52, 98)
-        pdf.cell(0, 7, _pdf_text(f"Run {run.run_number}"), new_x="LMARGIN", new_y="NEXT")
-        pdf.set_font("Helvetica", "", 8)
-        pdf.set_text_color(100, 100, 100)
+        # ---- run band: run name on the left, its facts on the right ----
         transferred = run.created_at.strftime("%d %b %Y") if run.created_at else "-"
-        pdf.cell(0, 4.5, _pdf_text(f"{len(rows)} sample{'' if len(rows) == 1 else 's'}  |  Transferred {transferred}"),
-                 new_x="LMARGIN", new_y="NEXT")
+        y = pdf.get_y()
+        pdf.set_fill_color(236, 240, 246)
+        pdf.rect(x0, y, usable, 8, style="F")
+        pdf.set_fill_color(11, 52, 98)
+        pdf.rect(x0, y, 1.4, 8, style="F")
+        pdf.set_xy(x0 + 4, y)
+        pdf.set_font("Helvetica", "B", 10.5)
+        pdf.set_text_color(11, 52, 98)
+        pdf.cell(usable / 2, 8, _pdf_text(f"Run: {run.run_number}"))
+        pdf.set_xy(x0 + usable / 2, y)
+        pdf.set_font("Helvetica", "", 8.5)
+        pdf.set_text_color(60, 60, 60)
+        pdf.cell(usable / 2 - 4, 8, _pdf_text(
+            f"Samples: {len(rows)}     Transferred: {transferred}"), align="R")
         pdf.set_text_color(0, 0, 0)
-        pdf.ln(1.5)
+        pdf.set_fill_color(255, 255, 255)  # the table below has no fill
+        pdf.set_y(y + 10.5)
         if not rows or not cols:
             pdf.set_font("Helvetica", "I", 9)
             pdf.cell(0, 6, "No sample data for the selected columns." if rows
@@ -282,7 +295,8 @@ def _build_pdf(sections: list[tuple[models.Run, list[dict]]], keys: list[str], g
         with pdf.table(
             col_widths=tuple(widths),
             width=usable,
-            text_align=("LEFT",) * len(cols),
+            text_align="CENTER",
+            v_align="MIDDLE",
             line_height=font_size * 0.48,
             padding=1.1,
             headings_style=FontFace(emphasis="BOLD", color=(0, 0, 0)),

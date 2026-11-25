@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, clearSession, getStoredUser, getToken, getActingRole, setActingRole } from "./api";
 import { isAwaiting } from "./workflow";
+import Analysis from "./components/Analysis";
 import AdminUsers from "./components/AdminUsers";
 import Dashboard from "./components/Dashboard";
 import ApprovalStatus from "./components/ApprovalStatus";
@@ -211,6 +212,7 @@ export default function App() {
   const tabs = [
     ...(OVERVIEW_ROLES.includes(effUser.role) ? [{ id: "overview", label: "Dashboard", icon: "flask" }] : []),
     { id: "work", label: "My work", badge: pendingCount, icon: "clock" },
+    { id: "analysis", label: "Analysis", icon: "flask" },
     { id: "monthly", label: "Monthly Report", icon: "file" },
     ...(QC_REPORT_ROLES.includes(effUser.role) ? [{ id: "qcreport", label: "QC Report", icon: "file" }] : []),
     ...(effUser.role === "primary_head" ? [{ id: "admin", label: "User Management", icon: "users" }] : []),
@@ -264,6 +266,8 @@ export default function App() {
             onChanged={afterChange}
             pushToast={pushToast}
           />
+        ) : tab === "analysis" ? (
+          <Analysis />
         ) : tab === "monthly" ? (
           <MonthlyReport user={effUser} onViewRun={setViewingRun} />
         ) : tab === "qcreport" && QC_REPORT_ROLES.includes(effUser.role) ? (
