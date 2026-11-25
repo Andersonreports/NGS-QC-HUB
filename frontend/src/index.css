@@ -44,22 +44,25 @@
   }
   body {
     @apply text-slate-900 font-sans antialiased;
-    /* Site-wide background image: a pale wash keeps content readable, the image
-       stays fixed and covers any viewport (phone to ultrawide). */
-    background-color: #e8f1fa;
-    background-image:
-      linear-gradient(rgba(255, 255, 255, 0.719), rgba(255, 255, 255, 0.06)),
-      url("./assets/bg.jpg");
-    background-size: cover;
-    background-position: center center;
-    background-repeat: no-repeat;
-    background-attachment: fixed;
+    background-color: #f1f6fb;
     min-height: 100vh;
     min-height: 100dvh;
   }
-  /* iOS/mobile browsers ignore background-attachment: fixed; fall back to scroll. */
-  @media (max-width: 768px), (hover: none) {
-    body { background-attachment: scroll; background-position: 30% center; }
+  /* Site-wide background image, kept deliberately quiet: blurred, faded and
+     slightly desaturated so it adds atmosphere without competing with content.
+     Fixed layer behind everything; covers any viewport. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: -24px; /* bleed so the blur has no soft edge */
+    z-index: -1;
+    pointer-events: none;
+    background: url("./assets/bg.jpg") center center / cover no-repeat;
+    filter: blur(6px) saturate(0.7);
+    opacity: 0.22;
+  }
+  @media (max-width: 768px) {
+    body::before { background-position: 30% center; }
   }
 }
 

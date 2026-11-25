@@ -14,7 +14,7 @@ export default function Root() {
 
   useEffect(() => {
     if (org) document.documentElement.dataset.org = org;
-    document.title = org ? `${ORGS[org].name} – Anderson Diagnostics` : "Anderson Diagnostics";
+    document.title = org ? `${ORGS[org].name} – Anderson Diagnostics & Labs` : "Anderson Diagnostics & Labs";
   }, [org]);
 
   if (external) return null;

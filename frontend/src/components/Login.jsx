@@ -33,7 +33,7 @@ export default function Login({ onLoggedIn }) {
           </div>
           <div>
             <div className="text-lg font-extrabold leading-tight">Germline Exome QC Hub</div>
-            <div className="text-xs text-slate-500 font-medium">Anderson Diagnostics · {ORGS[currentOrgId()]?.name}</div>
+            <div className="text-xs text-slate-500 font-medium">Anderson Diagnostics & Labs · {ORGS[currentOrgId()]?.name}</div>
           </div>
         </div>
 

@@ -29,9 +29,8 @@ export default function Landing() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-10">
       <div className="text-center mb-8 sm:mb-10">
-        <div className="text-xs font-bold tracking-widest uppercase text-slate-500">Anderson Diagnostics</div>
-        <h1 className="text-2xl sm:text-4xl font-extrabold mt-2">Choose your organization</h1>
-        <p className="text-slate-600 mt-2 text-sm sm:text-base">Select where you'd like to continue.</p>
+        <div className="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-wide uppercase text-brand-900">Anderson Diagnostics &amp; Labs</div>
+        <h1 className="text-base sm:text-xl font-bold mt-3 text-slate-700">Choose your organization</h1>
       </div>
 
       <div className="grid w-full max-w-3xl grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">

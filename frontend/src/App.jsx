@@ -15,7 +15,6 @@ import TopBar from "./components/TopBar";
 import TransferForm from "./components/TransferForm";
 import UnreadDigest from "./components/UnreadDigest";
 import { Alert } from "./components/ui";
-import { playChime } from "./sound";
 
 const POLL_MS = 10000;
 
@@ -23,10 +22,10 @@ const POLL_MS = 10000;
  * straight to the work queue, where it starts new transfers. */
 const OVERVIEW_ROLES = ["primary_team", "primary_head", "bioinfo_head"];
 
+// The role an admin acts as by default when they first sign in.
 /** Roles that may open the QC Report (the backend enforces the same list). */
 const QC_REPORT_ROLES = ["primary_head", "bioinfo_head"];
 
-// The role an admin acts as by default when they first sign in.
 const DEFAULT_ACTING_ROLE = "wetlab";
 
 /** True for an admin account — the only one that gets the role switcher. The real
@@ -97,7 +96,6 @@ export default function App() {
       const isFirstLoad = seenNotifications.current === null;
       if (isFirstLoad) seenNotifications.current = new Set();
       const arrived = notifData.filter((n) => !n.read && !seenNotifications.current.has(n.id));
-      if (arrived.length > 0) playChime();
       arrived.forEach((n) => seenNotifications.current.add(n.id));
 
       const withRunNumber = (n) => ({ ...n, runNumber: runsData.find((r) => r.id === n.run_id)?.run_number });

@@ -54,7 +54,19 @@ export default function TopBar({
         <div className="relative w-full px-4 sm:px-6 lg:px-8">
           <div className="h-14 sm:h-[4.5rem] flex items-center gap-2 sm:gap-3">
             {/* balances the controls on the right so the title sits dead centre */}
-            <div className="hidden md:block flex-1" />
+            <div className="md:flex-1 shrink-0 flex items-center">
+              <a
+                href="/"
+                title="Back to organization selection"
+                aria-label="Back to organization selection"
+                className="inline-flex items-center gap-1.5 h-9 sm:h-10 px-2 sm:px-3 rounded-lg text-sm font-semibold text-brand-100 hover:bg-white/15 hover:text-white transition-colors"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M19 12H5M12 19l-7-7 7-7" />
+                </svg>
+                <span className="hidden sm:inline">Back</span>
+              </a>
+            </div>
 
             <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 md:flex-none">
               <div className="w-9 h-9 sm:w-11 sm:h-11 shrink-0 rounded-xl sm:rounded-2xl bg-gradient-to-br from-accent-400 to-accent-700 ring-1 ring-white/30 flex items-center justify-center shadow-lg shadow-accent-900/40">
@@ -63,7 +75,7 @@ export default function TopBar({
               <div className="text-left min-w-0">
                 <div className="text-[0.95rem] min-[420px]:text-base sm:text-xl lg:text-[1.35rem] font-extrabold tracking-tight leading-tight sm:leading-none truncate bg-gradient-to-r from-white to-brand-100 bg-clip-text text-transparent">Germline Exome QC Hub</div>
                 <div className="hidden min-[420px]:block text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.16em] text-accent-200 mt-1 sm:mt-1.5 truncate">
-                  Anderson Diagnostics · {ORGS[currentOrgId()]?.name}
+                  Anderson Diagnostics & Labs · {ORGS[currentOrgId()]?.name}
                 </div>
               </div>
             </div>
@@ -161,9 +173,6 @@ export default function TopBar({
       {isAdmin && (
         <div className="bg-brand-800 text-white border-b border-white/10">
           <div className="w-full px-4 sm:px-6 lg:px-8 py-2 flex items-center sm:justify-center gap-2 overflow-x-auto whitespace-nowrap">
-            <span className="inline-flex items-center gap-1.5 text-[10.5px] font-extrabold uppercase tracking-wide text-accent-200 mr-1">
-              <Icon name="users" size={13} /> Admin · testing as
-            </span>
             {Object.keys(ROLES).map((rid) => {
               const r = ROLES[rid];
               const active = actingRole === rid;
