@@ -10,12 +10,13 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from .. import models, vswarehouse_service as svc
 from ..deps import get_current_user
 from ..tenancy import current_org
+from .auth import VSW_ROLES
 
 
 def _admin_only(user: models.User = Depends(get_current_user)) -> models.User:
     # real_role is the account's true role even while an admin is acting as another role.
-    if getattr(user, "real_role", user.role) != "admin":
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "VSWarehouse is restricted to admin accounts")
+    if getattr(user, "real_role", user.role) not in VSW_ROLES:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "VSWarehouse is not available for this account")
     return user
 
 

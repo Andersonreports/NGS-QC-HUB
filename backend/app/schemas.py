@@ -29,6 +29,19 @@ class TokenResponse(BaseModel):
     user: UserOut
 
 
+class PortalSession(BaseModel):
+    org: str
+    access_token: str
+    user: UserOut
+
+
+class PortalLoginResponse(BaseModel):
+    org: str  # the organization the account belongs to
+    role: str
+    full_name: str
+    sessions: list[PortalSession]
+
+
 class ChangePasswordRequest(BaseModel):
     old_password: str
     new_password: str = Field(min_length=6)

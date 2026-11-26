@@ -1,5 +1,8 @@
 import { useState } from "react";
+import { useEffect } from "react";
+import { clearPortalSessions, getPortal } from "../api";
 import { ORGS, orgHref } from "../orgs";
+import Login from "./Login";
 
 const CARDS = [
   {
@@ -80,66 +83,58 @@ function Svg({ children, size = 28 }) {
   );
 }
 
-export default function Landing() {
-  const [selected, setSelected] = useState(null);
-  const card = CARDS.find((c) => c.org.id === selected);
+function Cards({ org, ring, badge, cta, label }) {
+  return (
+    <div className="w-full">
+      {label && <h2 className="text-center text-base font-bold text-slate-700 mb-3">{label}</h2>}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+        {destinations(org).map((d) => (
+          <a key={d.id} href={d.href} className={`${CARD_BASE} ${ring}`}>
+            <span className={`absolute inset-x-0 top-0 h-1.5 ${badge}`} />
+            <div className={`w-20 h-20 rounded-3xl text-white flex items-center justify-center shadow-md ${badge}`}>
+              <Svg size={40}>{d.icon}</Svg>
+            </div>
+            <div className="text-2xl sm:text-3xl font-extrabold leading-tight">{org.id.toUpperCase()} {d.title}</div>
+            <Arrow cta={cta} />
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
 
+/** "/" is the sign-in page. After signing in the account goes straight to its own
+ * Germline (Wet Lab), or sees its organization's Germline + VSWarehouse cards (primary
+ * roles), or all four cards across both organizations (admin). */
+export default function Landing() {
+  const [portal, setPortal] = useState(getPortal);
+  const wetlab = portal?.role === "wetlab";
+
+  useEffect(() => {
+    if (wetlab && ORGS[portal.org]) window.location.replace(orgHref(ORGS[portal.org]));
+  }, [wetlab, portal]);
+
+  if (!portal) return <Login portal onLoggedIn={(data) => setPortal(getPortal() || { org: data.org, role: data.role, orgs: [data.org] })} />;
+  if (wetlab) return null;
+
+  const orgs = portal.role === "admin" ? CARDS : CARDS.filter((c) => c.org.id === portal.org);
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-10">
       <div className="text-center mb-8 sm:mb-10">
         <div className="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-wide uppercase text-brand-900">Anderson Diagnostics &amp; Labs</div>
-        <h1 className="text-base sm:text-xl font-bold mt-3 text-slate-700">
-          {card ? `${card.org.name} — choose where to go` : "Choose your organization"}
-        </h1>
       </div>
-
-      {card ? (
-        <div className="w-full max-w-3xl">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-            {destinations(card.org).map((d) => (
-              <a
-                key={d.id}
-                href={d.href}
-                className={`${CARD_BASE} ${card.ring}`}
-              >
-                <span className={`absolute inset-x-0 top-0 h-1.5 ${card.badge}`} />
-                <div className={`w-20 h-20 rounded-3xl text-white flex items-center justify-center shadow-md ${card.badge}`}>
-                  <Svg size={40}>{d.icon}</Svg>
-                </div>
-                <div className="text-2xl sm:text-3xl font-extrabold leading-tight">{d.title}</div>
-                <Arrow cta={card.cta} />
-              </a>
-            ))}
-          </div>
-          <div className="text-center mt-6">
-            <button
-              type="button"
-              onClick={() => setSelected(null)}
-              className="text-sm font-semibold text-slate-600 hover:text-slate-900 hover:underline"
-            >
-              ← Change organization
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="grid w-full max-w-3xl grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-          {CARDS.map(({ org, ring, badge, cta, icon }) => (
-            <button
-              type="button"
-              key={org.id}
-              onClick={() => setSelected(org.id)}
-              className={`${CARD_BASE} ${ring}`}
-            >
-              <span className={`absolute inset-x-0 top-0 h-1.5 ${badge}`} />
-              <div className={`w-20 h-20 rounded-3xl text-white flex items-center justify-center shadow-md ${badge}`}>
-                <Svg size={40}>{icon}</Svg>
-              </div>
-              <div className="text-2xl sm:text-3xl font-extrabold leading-tight">{org.name}</div>
-              <Arrow cta={cta} />
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="w-full max-w-3xl space-y-8">
+        {orgs.map((c) => (
+          <Cards key={c.org.id} {...c} label={orgs.length > 1 ? c.org.name : ORGS[c.org.id].name} />
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={() => { clearPortalSessions(); setPortal(null); }}
+        className="mt-8 text-sm font-semibold text-slate-600 hover:text-slate-900 hover:underline"
+      >
+        Sign out
+      </button>
     </div>
   );
 }

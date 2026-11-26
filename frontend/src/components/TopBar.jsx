@@ -55,17 +55,17 @@ export default function TopBar({
           <div className="h-14 sm:h-[4.5rem] flex items-center gap-2 sm:gap-3">
             {/* balances the controls on the right so the title sits dead centre */}
             <div className="md:flex-1 shrink-0 flex items-center">
-              <a
+              {user.role !== "wetlab" && <a
                 href="/"
-                title="Back to organization selection"
-                aria-label="Back to organization selection"
+                title="Back to your modules"
+                aria-label="Back to your modules"
                 className="inline-flex items-center gap-1.5 h-9 sm:h-10 px-2 sm:px-3 rounded-lg text-sm font-semibold text-brand-100 hover:bg-white/15 hover:text-white transition-colors"
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="M19 12H5M12 19l-7-7 7-7" />
                 </svg>
                 <span className="hidden sm:inline">Back</span>
-              </a>
+              </a>}
             </div>
 
             <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 md:flex-none">

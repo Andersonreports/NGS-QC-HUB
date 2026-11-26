@@ -31,6 +31,44 @@ export function setSession(token, user) {
   store.setItem(TOKEN_KEY, token);
   store.setItem(USER_KEY, JSON.stringify(user));
 }
+// ---- Landing-page sign-in -------------------------------------------------------
+// The landing page signs in once and writes a session for every site the account may
+// open (each organization's Germline, plus its VSWarehouse), using the same keys those
+// sites read, so opening a card needs no second sign-in.
+const PORTAL_KEY = "ngsqc_portal";
+const suffixFor = (org, vsw) => (org === "ngs" ? "" : `_${org}`) + (vsw ? "_vsw" : "");
+export const VSW_ROLES = ["admin", "primary_team", "primary_head", "bioinfo_head"];
+
+export function setPortalSession(data) {
+  clearPortalSessions();
+  for (const s of data.sessions) {
+    const targets = [false];
+    if (VSW_ROLES.includes(s.user.role)) targets.push(true);
+    for (const vsw of targets) {
+      const sfx = suffixFor(s.org, vsw);
+      store.setItem(`ngsqc_token${sfx}`, s.access_token);
+      store.setItem(`ngsqc_user${sfx}`, JSON.stringify(s.user));
+    }
+  }
+  store.setItem(PORTAL_KEY, JSON.stringify({ org: data.org, role: data.role, name: data.full_name, orgs: data.sessions.map((s) => s.org) }));
+}
+export function getPortal() {
+  try {
+    return JSON.parse(store.getItem(PORTAL_KEY));
+  } catch {
+    return null;
+  }
+}
+export function clearPortalSessions() {
+  for (const o of ["ngs", "cmc"]) {
+    for (const vsw of [false, true]) {
+      const sfx = suffixFor(o, vsw);
+      for (const k of ["ngsqc_token", "ngsqc_user", "ngsqc_acting_role"]) store.removeItem(`${k}${sfx}`);
+    }
+  }
+  store.removeItem(PORTAL_KEY);
+}
+
 export function clearSession() {
   store.removeItem(TOKEN_KEY);
   store.removeItem(USER_KEY);
@@ -85,6 +123,7 @@ async function request(path, { method = "GET", json, form, auth = true } = {}) {
 
   if (res.status === 401 && auth) {
     clearSession();
+    clearPortalSessions();
     window.location.reload();
     throw new Error("Session expired. Please sign in again.");
   }
@@ -110,6 +149,7 @@ function periodQuery(period, fixed = {}) {
   const params = new URLSearchParams(fixed);
   if (period?.year && period.year !== "all") params.set("year", period.year);
   if (period?.month && period.month !== "all") params.set("month", period.month);
+  if (period?.run && period.run !== "all") params.set("run", period.run);
   const q = params.toString();
   return q ? `?${q}` : "";
 }
@@ -117,6 +157,8 @@ function periodQuery(period, fixed = {}) {
 export const api = {
   login: (username, password, site) =>
     request("/api/auth/login", { method: "POST", json: { username, password, ...(site ? { site } : {}) }, auth: false }),
+  portalLogin: (username, password) =>
+    request("/api/auth/portal-login", { method: "POST", json: { username, password }, auth: false }),
   me: () => request("/api/auth/me"),
   changePassword: (old_password, new_password) =>
     request("/api/auth/password", { method: "PATCH", json: { old_password, new_password } }),

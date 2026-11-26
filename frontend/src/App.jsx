@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, clearSession, getStoredUser, getToken, getActingRole, setActingRole } from "./api";
+import { api, clearPortalSessions, VSW_ROLES, clearSession, getStoredUser, getToken, getActingRole, setActingRole } from "./api";
 import { isAwaiting } from "./workflow";
 import Analysis from "./components/Analysis";
 import AdminUsers from "./components/AdminUsers";
 import Dashboard from "./components/Dashboard";
 import ApprovalStatus from "./components/ApprovalStatus";
-import Login from "./components/Login";
 import MonthlyReport from "./components/MonthlyReport";
 import Overview from "./components/Overview";
 import QCReport from "./components/QCReport";
@@ -159,6 +158,8 @@ export default function App() {
 
   function logout() {
     clearSession();
+    clearPortalSessions();
+    window.location.replace("/");
     seenNotifications.current = null;
     setActingRoleState(DEFAULT_ACTING_ROLE);
     setUser(null);
@@ -200,30 +201,11 @@ export default function App() {
     [pushToast]
   );
 
-  // VSWarehouse has its own sign-in and admits admin accounts only.
-  if (!user || (isVswPath() && !isAdminUser(user))) {
-    return (
-      <Login
-        site={isVswPath() ? VSW_TAB : undefined}
-        onLoggedIn={(u) => {
-          seenNotifications.current = null;
-          // For an admin, start acting as the default role and remember it before the
-          // first data load, so the role switcher and the X-Act-As-Role header agree.
-          if (isVswPath()) {
-            setUser(u);
-          } else if (isAdminUser(u)) {
-            const role = getActingRole() || DEFAULT_ACTING_ROLE;
-            setActingRole(role);
-            setActingRoleState(role);
-            setUser(u);
-            setTab(defaultTabFor({ role }));
-          } else {
-            setUser(u);
-            setTab(isVswPath() ? VSW_TAB : defaultTabFor(u));
-          }
-        }}
-      />
-    );
+  // Sign-in happens only on the landing page ("/"). Without a session for this site (or a
+  // role that may not open VSWarehouse), send the visitor back there.
+  if (!user || (isVswPath() && !VSW_ROLES.includes(user.real_role || user.role))) {
+    window.location.replace("/");
+    return null;
   }
 
   // Everything below renders for the *effective* role: for an admin that's the role
@@ -249,7 +231,7 @@ export default function App() {
     { id: "work", label: "My work", badge: pendingCount, icon: "clock" },
     ...(effUser.role !== "wetlab"
       ? [
-          { id: "analysis", label: "Analysis", icon: "flask" },
+          { id: "analysis", label: "Histogram", icon: "flask" },
           { id: "monthly", label: "Monthly Report", icon: "file" },
         ]
       : []),
