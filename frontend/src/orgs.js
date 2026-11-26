@@ -4,19 +4,19 @@
 export const ORGS = {
   cmc: {
     id: "cmc",
-    name: "CMC",
+    name: "CMC - Ranipet",
     path: "/cmc",
     url: import.meta.env.VITE_CMC_URL || "",
     tagline: "Germline Exome QC Hub",
-    blurb: "CMC's own workspace: sequencing runs, QC approvals and monthly reports.",
+    blurb: "CMC - Ranipet workspace: sequencing runs, QC approvals and monthly reports.",
   },
   ngs: {
     id: "ngs",
-    name: "NGS",
+    name: "Anderson Diagnosis and Lab - Chennai",
     path: "/ngs",
     url: import.meta.env.VITE_NGS_URL || "",
     tagline: "Germline Exome QC Hub",
-    blurb: "NGS's own workspace: sequencing runs, QC approvals and monthly reports.",
+    blurb: "Anderson Diagnosis and Lab - Chennai workspace: sequencing runs, QC approvals and monthly reports.",
   },
 };
 

@@ -247,8 +247,12 @@ export default function App() {
   const tabs = [
     ...(OVERVIEW_ROLES.includes(effUser.role) ? [{ id: "overview", label: "Dashboard", icon: "flask" }] : []),
     { id: "work", label: "My work", badge: pendingCount, icon: "clock" },
-    { id: "analysis", label: "Analysis", icon: "flask" },
-    { id: "monthly", label: "Monthly Report", icon: "file" },
+    ...(effUser.role !== "wetlab"
+      ? [
+          { id: "analysis", label: "Analysis", icon: "flask" },
+          { id: "monthly", label: "Monthly Report", icon: "file" },
+        ]
+      : []),
     ...(QC_REPORT_ROLES.includes(effUser.role) ? [{ id: "qcreport", label: "QC Report", icon: "file" }] : []),
     ...(effUser.role === "primary_head" ? [{ id: "admin", label: "User Management", icon: "users" }] : []),
   ];
@@ -301,9 +305,9 @@ export default function App() {
             onChanged={afterChange}
             pushToast={pushToast}
           />
-        ) : tab === "analysis" ? (
+        ) : tab === "analysis" && effUser.role !== "wetlab" ? (
           <Analysis />
-        ) : tab === "monthly" ? (
+        ) : tab === "monthly" && effUser.role !== "wetlab" ? (
           <MonthlyReport user={effUser} onViewRun={setViewingRun} />
         ) : tab === "qcreport" && QC_REPORT_ROLES.includes(effUser.role) ? (
           <QCReport onViewRun={setViewingRun} />

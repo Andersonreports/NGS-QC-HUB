@@ -61,6 +61,16 @@ function destinations(org) {
   ];
 }
 
+const CARD_BASE =
+  "group relative overflow-hidden card min-h-[220px] sm:min-h-[260px] px-6 py-8 flex flex-col items-center justify-center gap-6 text-center border-2 border-transparent transition duration-200 hover:-translate-y-1 hover:shadow-xl focus:outline-none focus-visible:ring-2";
+
+function Arrow({ cta }) {
+  return (
+    <span className={`absolute right-4 bottom-4 w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-lg font-bold ${cta}
+      opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition`} aria-hidden="true">→</span>
+  );
+}
+
 function Svg({ children, size = 28 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -90,20 +100,14 @@ export default function Landing() {
               <a
                 key={d.id}
                 href={d.href}
-                className={`group card p-6 sm:p-8 flex flex-col items-start gap-4 border-2 transition
-                  hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus-visible:ring-2 ${card.ring}`}
+                className={`${CARD_BASE} ${card.ring}`}
               >
-                <div className={`w-14 h-14 rounded-2xl text-white flex items-center justify-center ${card.badge}`}>
-                  <Svg>{d.icon}</Svg>
+                <span className={`absolute inset-x-0 top-0 h-1.5 ${card.badge}`} />
+                <div className={`w-20 h-20 rounded-3xl text-white flex items-center justify-center shadow-md ${card.badge}`}>
+                  <Svg size={40}>{d.icon}</Svg>
                 </div>
-                <div>
-                  <div className="text-3xl font-extrabold">{d.title}</div>
-                  <div className="text-sm font-semibold text-slate-600 mt-0.5">{d.sub}</div>
-                  <p className="text-sm text-slate-500 mt-2">{d.blurb}</p>
-                </div>
-                <span className={`mt-auto text-sm font-bold ${card.cta} group-hover:underline`}>
-                  Open {d.title} →
-                </span>
+                <div className="text-2xl sm:text-3xl font-extrabold leading-tight">{d.title}</div>
+                <Arrow cta={card.cta} />
               </a>
             ))}
           </div>
@@ -124,20 +128,14 @@ export default function Landing() {
               type="button"
               key={org.id}
               onClick={() => setSelected(org.id)}
-              className={`group card p-6 sm:p-8 flex flex-col items-start gap-4 border-2 transition text-left
-                hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus-visible:ring-2 ${ring}`}
+              className={`${CARD_BASE} ${ring}`}
             >
-              <div className={`w-14 h-14 rounded-2xl text-white flex items-center justify-center ${badge}`}>
-                <Svg>{icon}</Svg>
+              <span className={`absolute inset-x-0 top-0 h-1.5 ${badge}`} />
+              <div className={`w-20 h-20 rounded-3xl text-white flex items-center justify-center shadow-md ${badge}`}>
+                <Svg size={40}>{icon}</Svg>
               </div>
-              <div>
-                <div className="text-3xl font-extrabold">{org.name}</div>
-                <div className="text-sm font-semibold text-slate-600 mt-0.5">{org.tagline}</div>
-                <p className="text-sm text-slate-500 mt-2">{org.blurb}</p>
-              </div>
-              <span className={`mt-auto text-sm font-bold ${cta} group-hover:underline`}>
-                Continue to {org.name} →
-              </span>
+              <div className="text-2xl sm:text-3xl font-extrabold leading-tight">{org.name}</div>
+              <Arrow cta={cta} />
             </button>
           ))}
         </div>
