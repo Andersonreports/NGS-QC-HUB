@@ -43,7 +43,7 @@ export default function Login({ onLoggedIn, site, portal = false }) {
           </div>
         </div>
 
-        <form onSubmit={submit} className="card p-6 space-y-4">
+        <form onSubmit={submit} autoComplete="off" className="card p-6 space-y-4">
           <div>
             <h1 className="text-base font-bold">Sign in</h1>
             <p className="text-sm text-slate-500 mt-0.5">Use the account for your team.</p>
@@ -58,7 +58,7 @@ export default function Login({ onLoggedIn, site, portal = false }) {
               className="field"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              autoComplete="username"
+              autoComplete="off"
               autoFocus
               required
             />
@@ -72,7 +72,7 @@ export default function Login({ onLoggedIn, site, portal = false }) {
               className="field"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
+              autoComplete="new-password"
               required
             />
           </div>
