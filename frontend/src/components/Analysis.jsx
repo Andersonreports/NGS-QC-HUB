@@ -129,112 +129,113 @@ function ComboBars({ months }) {
   );
 }
 
-/** 3. Concentric progress rings — pass, fail and resequence as a share of samples. */
-function RadialRings({ totals }) {
-  const [hover, setHover] = useState(null);
+/** 3. QC scoreboard — one stacked pass / fail bar, then a meter per figure. Plain HTML/CSS,
+ * so it always lays out cleanly at any width. */
+function QCMeters({ totals }) {
   const sum = totals.pass + totals.fail;
   if (!sum) return <Empty />;
-  const rings = [
-    { k: "QC pass", v: totals.pass, of: sum, color: PASS, r: 138 },
-    { k: "QC fail", v: totals.fail, of: sum, color: FAIL, r: 108 },
-    { k: "Resequence", v: totals.resequence, of: Math.max(totals.total, 1), color: "#c9560f", r: 78 },
+  const passPct = pct(totals.pass, sum);
+  const failPct = pct(totals.fail, sum);
+  const meters = [
+    { label: "QC pass", value: totals.pass, share: passPct, note: `of ${fmt(sum)} checked`, from: "#34b98a", to: PASS },
+    { label: "QC fail", value: totals.fail, share: failPct, note: `of ${fmt(sum)} checked`, from: "#ef6b6b", to: FAIL },
+    { label: "Resequence", value: totals.resequence, share: pct(totals.resequence, totals.total), note: `of ${fmt(totals.total)} samples`, from: "#f08a45", to: "#c9560f" },
   ];
-  const C = 160, SW = 20;
-  const arc = (r, frac) => {
-    const f = Math.min(Math.max(frac, 0.0005), 0.9995);
-    const a = -Math.PI / 2 + f * Math.PI * 2;
-    return `M${C},${C - r} A${r},${r} 0 ${f > 0.5 ? 1 : 0} 1 ${C + r * Math.cos(a)},${C + r * Math.sin(a)}`;
-  };
-  const act = hover !== null ? rings[hover] : rings[0];
   return (
-    <div className="flex flex-col md:flex-row items-center justify-center gap-8 md:gap-14">
-      <svg viewBox="0 0 320 320" width="230" height="230" role="img" aria-label="QC and resequence rates" className="shrink-0">
-        {rings.map((g, i) => (
-          <g key={g.k} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} opacity={hover === null || hover === i ? 1 : 0.4}>
-            <circle cx={C} cy={C} r={g.r} fill="none" stroke="#edf1f7" strokeWidth={SW} />
-            <path d={arc(g.r, g.v / g.of)} fill="none" stroke={g.color} strokeWidth={SW} strokeLinecap="round" />
-          </g>
-        ))}
-        <text x={C} y={C + 2} textAnchor="middle" fontSize="38" fontWeight="900" fill="#0f172a">{pct(act.v, act.of)}%</text>
-        <text x={C} y={C + 24} textAnchor="middle" fontSize="12" fill="#94a3b8">{act.k}</text>
-      </svg>
-      <ul className="space-y-5">
-        {rings.map((g, i) => (
-          <li key={g.k} className="flex items-center gap-4" onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
-            <span className="w-3 h-12 rounded-full" style={{ background: g.color }} />
-            <div>
-              <div className="text-2xl font-black text-slate-900 leading-none">{fmt(g.v)}</div>
-              <div className="text-xs font-semibold text-slate-500 mt-1">{g.k} · {pct(g.v, g.of)}% of {fmt(g.of)}</div>
+    <div className="space-y-6">
+      {/* the headline: how the checked samples split */}
+      <div>
+        <div className="flex items-end justify-between mb-2">
+          <span className="text-sm font-bold text-slate-700">Pass vs fail</span>
+          <span className="text-sm text-slate-500">{fmt(sum)} samples checked</span>
+        </div>
+        <div className="flex h-11 rounded-xl overflow-hidden bg-slate-100">
+          <div className="flex items-center justify-center text-white text-sm font-extrabold" style={{ width: `${passPct}%`, background: `linear-gradient(90deg, #34b98a, ${PASS})` }}>
+            {passPct >= 8 && `${passPct}% pass`}
+          </div>
+          <div className="flex items-center justify-center text-white text-sm font-extrabold" style={{ width: `${failPct}%`, background: `linear-gradient(90deg, #ef6b6b, ${FAIL})` }}>
+            {failPct >= 8 && `${failPct}% fail`}
+          </div>
+        </div>
+      </div>
+
+      {/* one meter per figure */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {meters.map((m) => (
+          <div key={m.label}>
+            <div className="flex items-baseline justify-between">
+              <span className="text-xs font-bold uppercase tracking-wide text-slate-500">{m.label}</span>
+              <span className="text-xs font-bold text-slate-700">{m.share}%</span>
             </div>
-          </li>
+            <div className="text-3xl font-black text-slate-900 leading-tight mt-1">{fmt(m.value)}</div>
+            <div className="h-2.5 rounded-full bg-slate-100 overflow-hidden mt-2">
+              <div className="h-full rounded-full" style={{ width: `${Math.min(100, Math.max(m.share, m.value ? 2 : 0))}%`, background: `linear-gradient(90deg, ${m.from}, ${m.to})` }} />
+            </div>
+            <div className="text-xs text-slate-500 mt-1.5">{m.note}</div>
+          </div>
         ))}
-      </ul>
+      </div>
     </div>
   );
 }
 
-/** 2. Packed bubbles — one circle per test type, circle area = number of samples. */
-function TestBubbles({ mix, total }) {
+/** 2. Pie — each test type's share of the samples. */
+function TestPie({ mix, total }) {
   const [hover, setHover] = useState(null);
-  const items = TEST_ORDER.map((k) => ({ k, v: mix[k] || 0 })).filter((i) => i.v > 0).sort((a, b) => b.v - a.v);
+  const items = TEST_ORDER.map((k) => ({ k, v: mix[k] || 0 })).filter((i) => i.v > 0);
   if (!items.length) return <Empty />;
-  const maxV = items[0].v;
-  const RBIG = 105, GAP = 5;
-  const placed = [];
-  for (const it of items) {
-    const r = Math.max(20, RBIG * Math.sqrt(it.v / maxV));
-    let spot = { x: 0, y: 0 };
-    if (placed.length) {
-      // walk outward along a spiral until the circle fits without touching another
-      for (let t = 0; t < 4000; t += 1) {
-        const ang = t * 0.35, dist = 4 + t * 0.35;
-        const c = { x: dist * Math.cos(ang) * 1.5, y: dist * Math.sin(ang) };
-        if (placed.every((p) => Math.hypot(p.x - c.x, p.y - c.y) >= p.r + r + GAP)) {
-          spot = c;
-          break;
-        }
-      }
-    }
-    placed.push({ ...it, r, ...spot });
-  }
-  const minX = Math.min(...placed.map((p) => p.x - p.r)), maxX = Math.max(...placed.map((p) => p.x + p.r));
-  const minY = Math.min(...placed.map((p) => p.y - p.r)), maxY = Math.max(...placed.map((p) => p.y + p.r));
-  const pad = 8;
-  const vb = `${minX - pad} ${minY - pad} ${maxX - minX + pad * 2} ${maxY - minY + pad * 2}`;
+  const C = 130, R = 110;
+  const pt = (r, a) => [C + r * Math.cos(a), C + r * Math.sin(a)];
+  const slices = items.reduce((acc, it) => {
+    const start = acc.length ? acc[acc.length - 1].end : -Math.PI / 2;
+    const end = start + (it.v / total) * Math.PI * 2;
+    return [...acc, { ...it, start, end }];
+  }, []);
+  const pathOf = (s) => {
+    if (slices.length === 1) return `M${C - R},${C} A${R},${R} 0 1 1 ${C + R},${C} A${R},${R} 0 1 1 ${C - R},${C} Z`;
+    const [x0, y0] = pt(R, s.start), [x1, y1] = pt(R, s.end);
+    return `M${C},${C} L${x0},${y0} A${R},${R} 0 ${s.end - s.start > Math.PI ? 1 : 0} 1 ${x1},${y1} Z`;
+  };
   return (
     <div className="flex flex-col md:flex-row items-center justify-center gap-8 md:gap-14">
-      <svg viewBox={vb} className="w-full max-w-xl shrink-0" style={{ maxHeight: 300 }} role="img" aria-label="Test type mix">
+      <svg viewBox="0 0 260 260" width="340" height="340" className="shrink-0" role="img" aria-label="Test type mix">
         <defs>
-          {placed.map((p) => (
-            <radialGradient key={p.k} id={`bb-${p.k.replace(/\W/g, "")}`} cx="35%" cy="30%" r="80%">
-              <stop offset="0%" stopColor={TEST_COLORS[p.k]} stopOpacity="0.75" />
-              <stop offset="100%" stopColor={TEST_COLORS[p.k]} />
+          {slices.map((s) => (
+            <radialGradient key={s.k} id={`pie-${s.k.replace(/\W/g, "")}`} cx={C} cy={C} r={R} gradientUnits="userSpaceOnUse">
+              <stop offset="30%" stopColor={TEST_COLORS[s.k]} stopOpacity="0.8" />
+              <stop offset="100%" stopColor={TEST_COLORS[s.k]} />
             </radialGradient>
           ))}
         </defs>
-        {placed.map((p, i) => (
-          <g key={p.k} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} opacity={hover === null || hover === i ? 1 : 0.4} style={{ transition: "opacity .15s" }}>
-            <circle cx={p.x} cy={p.y} r={p.r + 3} fill={TEST_COLORS[p.k]} fillOpacity="0.14" />
-            <circle cx={p.x} cy={p.y} r={p.r} fill={`url(#bb-${p.k.replace(/\W/g, "")})`} />
-            {p.r >= 30 ? (
-              <>
-                <text x={p.x} y={p.y - 2} textAnchor="middle" fontSize={Math.min(22, p.r / 2.4)} fontWeight="900" fill="#fff">{fmt(p.v)}</text>
-                <text x={p.x} y={p.y + Math.min(22, p.r / 2.4) * 0.75} textAnchor="middle" fontSize={Math.min(12, p.r / 4)} fontWeight="700" fill="#fff" fillOpacity="0.9">{p.k}</text>
-              </>
-            ) : (
-              <text x={p.x} y={p.y + 3} textAnchor="middle" fontSize="9" fontWeight="800" fill="#fff">{p.k.slice(0, 3)}</text>
-            )}
-            <title>{`${p.k}: ${fmt(p.v)} samples (${pct(p.v, total)}%)`}</title>
-          </g>
-        ))}
+        {slices.map((s, i) => {
+          const mid = (s.start + s.end) / 2;
+          const [tx, ty] = pt(R * 0.66, mid);
+          const [ox, oy] = hover === i ? [6 * Math.cos(mid), 6 * Math.sin(mid)] : [0, 0];
+          return (
+            <g
+              key={s.k}
+              transform={`translate(${ox} ${oy})`}
+              onMouseEnter={() => setHover(i)}
+              onMouseLeave={() => setHover(null)}
+              opacity={hover === null || hover === i ? 1 : 0.5}
+              style={{ transition: "all .15s" }}
+            >
+              <path d={pathOf(s)} fill={`url(#pie-${s.k.replace(/\W/g, "")})`} stroke="#fff" strokeWidth="2.5" strokeLinejoin="round" />
+              {s.v / total >= 0.06 && (
+                <text x={tx} y={ty + 4} textAnchor="middle" fontSize="13" fontWeight="800" fill="#fff">{pct(s.v, total)}%</text>
+              )}
+              <title>{`${s.k}: ${fmt(s.v)} samples (${pct(s.v, total)}%)`}</title>
+            </g>
+          );
+        })}
       </svg>
       <ul className="w-full max-w-xs space-y-2.5">
-        {placed.map((p, i) => (
-          <li key={p.k} className="flex items-center gap-3 text-sm" onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
-            <span className="w-3 h-3 rounded-full" style={{ background: TEST_COLORS[p.k] }} />
-            <span className="font-bold text-slate-800 flex-1">{p.k}</span>
-            <span className="text-slate-500 text-xs">{fmt(p.v)}</span>
-            <span className="w-12 text-right font-extrabold text-slate-900">{pct(p.v, total)}%</span>
+        {slices.map((s, i) => (
+          <li key={s.k} className="flex items-center gap-3 text-sm" onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
+            <span className="w-3 h-3 rounded-full" style={{ background: TEST_COLORS[s.k] }} />
+            <span className="font-bold text-slate-800 flex-1">{s.k}</span>
+            <span className="text-slate-500 text-xs">{fmt(s.v)}</span>
+            <span className="w-12 text-right font-extrabold text-slate-900">{pct(s.v, total)}%</span>
           </li>
         ))}
       </ul>
@@ -435,11 +436,11 @@ export default function Analysis() {
         <Section n={1} tone="tone-blue" title={`Samples by ${unit}`} subtitle="Samples in each period, each counted in the month of its own date" stat={fmt(totals.total)} statLabel="total samples">
           <ComboBars months={months} />
         </Section>
-        <Section n={2} tone="tone-sky" title="Test type mix" subtitle="Packed bubbles · bubble area = samples of that test" stat={fmt(mixTotal)} statLabel="tested samples">
-          <TestBubbles mix={totals.mix} total={mixTotal} />
+        <Section n={2} tone="tone-sky" title="Test type mix" subtitle="Pie · share of each test across the selection" stat={fmt(mixTotal)} statLabel="tested samples">
+          <TestPie mix={totals.mix} total={mixTotal} />
         </Section>
-        <Section n={3} tone="tone-green" title="QC & resequence rings" subtitle="Pass, fail and resequence as a share of samples · hover a ring" stat={`${passRate}%`} statLabel="pass rate">
-          <RadialRings totals={totals} />
+        <Section n={3} tone="tone-green" title="QC pass rate" subtitle="Pass vs fail across the selection, with resequence" stat={`${passRate}%`} statLabel="pass rate">
+          <QCMeters totals={totals} />
         </Section>
       </div>
     </div>

@@ -71,6 +71,16 @@ function fmtDateTime(iso) {
   });
 }
 
+// Charts are drawn at the size they are shown, so text and dots keep their proportions on
+// every screen (a fixed 900px canvas squashed into a phone made everything tiny).
+function chartSize(svg) {
+  const W = Math.max(260, Math.round(svg.clientWidth || svg.parentElement.clientWidth || 900));
+  const H = Math.max(150, Math.round(svg.clientHeight || 220));
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+  return { W, H };
+}
+
 function cssVar(name) {
   return getComputedStyle(host).getPropertyValue(name).trim();
 }
@@ -250,8 +260,7 @@ function renderTrend(history) {
   const avg = rows.length ? totalBurn / rows.length : 0;
   sub.textContent = `${fmtInt(totalBurn)} tokens over ${rows.length} day${rows.length === 1 ? '' : 's'} · avg ${Math.round(avg).toLocaleString('en-US')}/day · peak ${fmtInt(peak)}`;
 
-  const W = 900,
-    H = 220,
+  const { W, H } = chartSize(svg),
     padL = 38,
     padR = 16,
     padT = 16,
@@ -280,7 +289,7 @@ function renderTrend(history) {
     svg.appendChild(label);
   }
 
-  const maxLabels = Math.max(1, Math.floor(innerW / 54));
+  const maxLabels = Math.max(1, Math.floor(innerW / 64));
   const labelEvery = Math.max(1, Math.ceil(rows.length / maxLabels));
 
   rows.forEach((row, i) => {
@@ -316,7 +325,7 @@ function renderTrend(history) {
     });
     svg.appendChild(hit);
 
-    if (i % labelEvery === 0 || i === rows.length - 1) {
+    if ((i % labelEvery === 0 && rows.length - 1 - i >= labelEvery * 0.75) || i === rows.length - 1) {
       const label = el('text', {
         class: 'axis-label',
         x: cx,
@@ -377,8 +386,7 @@ function renderUserTrend(rawRows) {
   }
 
   const allPoints = series.flatMap((s) => s.points);
-  const W = 900,
-    H = 220,
+  const { W, H } = chartSize(svg),
     padL = 46,
     padR = 16,
     padT = 16,
@@ -555,8 +563,7 @@ function renderSamplesByDay(latest) {
     data.length
   } day${data.length === 1 ? '' : 's'}`;
 
-  const W = 900,
-    H = 220,
+  const { W, H } = chartSize(svg),
     padL = 30,
     padR = 16,
     padT = 16,
@@ -573,7 +580,7 @@ function renderSamplesByDay(latest) {
 
   // Thin the date labels so they don't overlap when there are many days;
   // every bar still renders, only some get a label (plus always the last).
-  const maxLabels = Math.max(1, Math.floor(innerW / 46));
+  const maxLabels = Math.max(1, Math.floor(innerW / 64));
   const labelEvery = Math.max(1, Math.ceil(data.length / maxLabels));
 
   const ns = 'http://www.w3.org/2000/svg';
@@ -617,7 +624,7 @@ function renderSamplesByDay(latest) {
     });
 
     const isLast = i === data.length - 1;
-    if (i % labelEvery === 0 || isLast) {
+    if ((i % labelEvery === 0 && data.length - 1 - i >= labelEvery * 0.75) || isLast) {
       const label = el('text', {
         class: 'axis-label',
         x: cx,
@@ -793,6 +800,23 @@ function renderOrg(org, source) {
   renderMonthOptions(sorted);
   renderHistoryViews();
 }
+
+// Redraw the charts when the available width changes (rotate, resize, side panels).
+let lastChartWidth = 0;
+let resizeTimer = null;
+const resizeObserver = new ResizeObserver(() => {
+  const w = host.clientWidth;
+  if (w === lastChartWidth) return;
+  lastChartWidth = w;
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    const reports = currentOrgData && currentOrgData.reports;
+    if (!reports || reports.length === 0) return;
+    renderSamplesByDay(reports[reports.length - 1]);
+    renderHistoryViews();
+  }, 120);
+});
+resizeObserver.observe(host);
 
 // Explains why the sheet log and the licence meter disagree. Only meaningful
 // on the Excel tab, where both sources are in play.
@@ -1218,6 +1242,8 @@ async function init() {
 init();
 
 return function destroy() {
+  resizeObserver.disconnect();
+  clearTimeout(resizeTimer);
   clearInterval(refreshTimer);
   clearTimeout(showUploadStatus._t);
   document.removeEventListener('keydown', onKeydown);

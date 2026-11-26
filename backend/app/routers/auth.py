@@ -15,6 +15,8 @@ def login(payload: schemas.LoginRequest, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.username == payload.username.strip().lower()).first()
     if not user or not user.is_active or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Incorrect username or password")
+    if payload.site == "vswarehouse" and user.role != "admin":
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "VSWarehouse is restricted to admin accounts")
     token = create_access_token(user.id, current_org.get())
     user.real_role = user.role
     return schemas.TokenResponse(access_token=token, user=schemas.UserOut.model_validate(user))

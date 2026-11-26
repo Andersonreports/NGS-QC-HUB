@@ -3,7 +3,7 @@ import { api, setSession } from "../api";
 import { ORGS, currentOrgId } from "../orgs";
 import { Alert, Icon, Spinner } from "./ui";
 
-export default function Login({ onLoggedIn }) {
+export default function Login({ onLoggedIn, site }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(null);
@@ -14,7 +14,7 @@ export default function Login({ onLoggedIn }) {
     setBusy(true);
     setError(null);
     try {
-      const data = await api.login(username.trim(), password);
+      const data = await api.login(username.trim(), password, site);
       setSession(data.access_token, data.user);
       onLoggedIn(data.user);
     } catch (err) {
@@ -32,7 +32,7 @@ export default function Login({ onLoggedIn }) {
             <Icon name="flask" size={22} />
           </div>
           <div>
-            <div className="text-lg font-extrabold leading-tight">Germline Exome QC Hub</div>
+            <div className="text-lg font-extrabold leading-tight">{site === "vswarehouse" ? "VSWarehouse Token Monitor" : "Germline Exome QC Hub"}</div>
             <div className="text-xs text-slate-500 font-medium">Anderson Diagnostics & Labs · {ORGS[currentOrgId()]?.name}</div>
           </div>
         </div>
@@ -40,7 +40,7 @@ export default function Login({ onLoggedIn }) {
         <form onSubmit={submit} className="card p-6 space-y-4">
           <div>
             <h1 className="text-base font-bold">Sign in</h1>
-            <p className="text-sm text-slate-500 mt-0.5">Use the account for your team.</p>
+            <p className="text-sm text-slate-500 mt-0.5">{site === "vswarehouse" ? "Admin accounts only." : "Use the account for your team."}</p>
           </div>
 
           {error && <Alert kind="error">{error}</Alert>}

@@ -53,7 +53,7 @@ function defaultTabFor(user) {
 
 export default function App() {
   const [user, setUser] = useState(() => (getToken() ? getStoredUser() : null));
-  // The role an admin is currently acting as. Seeded into localStorage on init so the
+  // The role an admin is currently acting as. Seeded into the session on init so the
   // first API call already sends the X-Act-As-Role header; a no-op for non-admins.
   const [actingRole, setActingRoleState] = useState(() => {
     const u = getToken() ? getStoredUser() : null;
@@ -76,7 +76,9 @@ export default function App() {
   }, []);
   // Browser back/forward between the workspace and the token monitor.
   useEffect(() => {
-    const onPop = () => setTabState((t) => (isVswPath() ? VSW_TAB : t === VSW_TAB ? defaultTabFor(getStoredUser()) : t));
+    // The token monitor and the Germline site keep separate sessions, so moving between
+    // them with back/forward reloads into the right one.
+    const onPop = () => window.location.reload();
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
@@ -102,7 +104,7 @@ export default function App() {
   const dismissToast = useCallback((id) => setToasts((t) => t.filter((x) => x.id !== id)), []);
 
   const refresh = useCallback(async () => {
-    if (!user) return;
+    if (!user || isVswPath()) return;
     try {
       const [runsData, notifData] = await Promise.all([api.listRuns(), api.listNotifications()]);
       setRuns(runsData);
@@ -198,14 +200,18 @@ export default function App() {
     [pushToast]
   );
 
-  if (!user) {
+  // VSWarehouse has its own sign-in and admits admin accounts only.
+  if (!user || (isVswPath() && !isAdminUser(user))) {
     return (
       <Login
+        site={isVswPath() ? VSW_TAB : undefined}
         onLoggedIn={(u) => {
           seenNotifications.current = null;
           // For an admin, start acting as the default role and remember it before the
           // first data load, so the role switcher and the X-Act-As-Role header agree.
-          if (isAdminUser(u)) {
+          if (isVswPath()) {
+            setUser(u);
+          } else if (isAdminUser(u)) {
             const role = getActingRole() || DEFAULT_ACTING_ROLE;
             setActingRole(role);
             setActingRoleState(role);

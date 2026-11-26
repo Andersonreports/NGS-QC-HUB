@@ -1,19 +1,27 @@
 """VSWarehouse Token Monitor, exposed per organization.
 
-Every endpoint requires a signed-in user, and the organization (and so the license, usage
+Every endpoint requires a signed-in admin, and the organization (and so the license, usage
 CSVs and Google Sheet) is the one the session belongs to — it is never read from the URL or
 body, so CMC and NGS data cannot be mixed. Changing data (upload / delete) is limited to the
 Primary Team and the two team heads; everyone signed in may view.
 """
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
 from .. import models, vswarehouse_service as svc
-from ..deps import get_current_user, require_role
+from ..deps import get_current_user
 from ..tenancy import current_org
 
-router = APIRouter(prefix="/api/vswarehouse", tags=["vswarehouse"])
 
-_editor = require_role("primary_team", "primary_head", "bioinfo_head")
+def _admin_only(user: models.User = Depends(get_current_user)) -> models.User:
+    # real_role is the account's true role even while an admin is acting as another role.
+    if getattr(user, "real_role", user.role) != "admin":
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "VSWarehouse is restricted to admin accounts")
+    return user
+
+
+router = APIRouter(prefix="/api/vswarehouse", tags=["vswarehouse"], dependencies=[Depends(_admin_only)])
+
+_editor = _admin_only
 
 
 def _relay(method: str, path: str, body: bytes | None = None, content_type: str | None = None) -> Response:

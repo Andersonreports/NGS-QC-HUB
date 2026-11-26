@@ -4,7 +4,12 @@ import { currentOrgId } from "./orgs";
 // own stored session, so signing in to one never carries over to the other. NGS keeps
 // the original storage keys.
 const ORG = currentOrgId() || "ngs";
-const SUFFIX = ORG === "ngs" ? "" : `_${ORG}`;
+// VSWarehouse is a separate site with its own sign-in, so it gets its own session keys too.
+const IS_VSW = window.location.pathname.split("/").filter(Boolean)[1]?.toLowerCase() === "vswarehouse";
+const SUFFIX = (ORG === "ngs" ? "" : `_${ORG}`) + (IS_VSW ? "_vsw" : "");
+// Sessions live in sessionStorage: they end when the tab is closed and are never shared
+// between tabs, so one login (site or organization) cannot affect another.
+const store = sessionStorage;
 const TOKEN_KEY = `ngsqc_token${SUFFIX}`;
 const USER_KEY = `ngsqc_user${SUFFIX}`;
 const ACTING_ROLE_KEY = `ngsqc_acting_role${SUFFIX}`;
@@ -13,38 +18,38 @@ const ACTING_ROLE_KEY = `ngsqc_acting_role${SUFFIX}`;
 const BASE = "";
 
 export function getToken() {
-  return localStorage.getItem(TOKEN_KEY);
+  return store.getItem(TOKEN_KEY);
 }
 export function getStoredUser() {
   try {
-    return JSON.parse(localStorage.getItem(USER_KEY));
+    return JSON.parse(store.getItem(USER_KEY));
   } catch {
     return null;
   }
 }
 export function setSession(token, user) {
-  localStorage.setItem(TOKEN_KEY, token);
-  localStorage.setItem(USER_KEY, JSON.stringify(user));
+  store.setItem(TOKEN_KEY, token);
+  store.setItem(USER_KEY, JSON.stringify(user));
 }
 export function clearSession() {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(USER_KEY);
-  localStorage.removeItem(ACTING_ROLE_KEY);
+  store.removeItem(TOKEN_KEY);
+  store.removeItem(USER_KEY);
+  store.removeItem(ACTING_ROLE_KEY);
 }
 
 // The role an admin is currently acting as. Sent on every request as X-Act-As-Role;
 // the backend only honours it for an admin account, so it's harmless for anyone else.
 export function getActingRole() {
   try {
-    return localStorage.getItem(ACTING_ROLE_KEY);
+    return store.getItem(ACTING_ROLE_KEY);
   } catch {
     return null;
   }
 }
 export function setActingRole(role) {
   try {
-    if (role) localStorage.setItem(ACTING_ROLE_KEY, role);
-    else localStorage.removeItem(ACTING_ROLE_KEY);
+    if (role) store.setItem(ACTING_ROLE_KEY, role);
+    else store.removeItem(ACTING_ROLE_KEY);
   } catch {
     /* ignore storage errors */
   }
@@ -110,8 +115,8 @@ function periodQuery(period, fixed = {}) {
 }
 
 export const api = {
-  login: (username, password) =>
-    request("/api/auth/login", { method: "POST", json: { username, password }, auth: false }),
+  login: (username, password, site) =>
+    request("/api/auth/login", { method: "POST", json: { username, password, ...(site ? { site } : {}) }, auth: false }),
   me: () => request("/api/auth/me"),
   changePassword: (old_password, new_password) =>
     request("/api/auth/password", { method: "PATCH", json: { old_password, new_password } }),

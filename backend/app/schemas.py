@@ -7,6 +7,8 @@ from pydantic import BaseModel, ConfigDict, Field
 class LoginRequest(BaseModel):
     username: str
     password: str
+    # Set by the VSWarehouse sign-in page; that site only admits admin accounts.
+    site: Optional[str] = None
 
 
 class UserOut(BaseModel):

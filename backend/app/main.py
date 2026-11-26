@@ -11,7 +11,7 @@ from .tenancy import ORG_IDS, DEFAULT_ORG, current_org, normalize_org
 from .migrations import run_migrations
 from .routers import auth, runs, notifications, admin, sheets, reports, dashboard, qc_report, vswarehouse
 from . import vswarehouse_service
-from .seed import seed_default_accounts, sync_seed_display_names, ensure_admin_account
+from .seed import seed_default_accounts, sync_seed_display_names, ensure_admin_account, migrate_cmc_logins
 from .database import SessionLocal
 from .file_naming import rename_existing_consolidated_files
 
@@ -21,6 +21,7 @@ def _init_org(org: str):
         Base.metadata.create_all(bind=engines[org])
         run_migrations(engines[org])
         seed_default_accounts()
+        migrate_cmc_logins()
         sync_seed_display_names()
         ensure_admin_account()
 
