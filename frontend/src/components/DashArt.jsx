@@ -40,6 +40,15 @@ const ART = {
   ),
 };
 
+ART.runs = (
+  <>
+    <rect x="8" y="12" width="48" height="40" rx="7" fill="currentColor" fillOpacity="0.14" />
+    <path d="M8 24h48" stroke="currentColor" strokeWidth="4" />
+    <path d="M18 34h28M18 43h18" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+    <path d="M20 8v8M44 8v8" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+  </>
+);
+
 export default function DashArt({ name, size = 64, className = "" }) {
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" className={className} aria-hidden="true">

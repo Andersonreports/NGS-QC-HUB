@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, downloadTotalWorkDone } from "../api";
 import DashArt from "./DashArt";
 import PeriodFilter, { periodLabel } from "./PeriodFilter";
+import RunListDialog from "./RunListDialog";
 import SampleListDialog from "./SampleListDialog";
 import { Alert, Icon, Spinner } from "./ui";
 
@@ -24,7 +25,7 @@ export default function TotalWorkDone({ refreshKey }) {
   const [exporting, setExporting] = useState(null);
   const [exportError, setExportError] = useState(null);
   const [listing, setListing] = useState(null); // which headline card's samples are open
-  const [period, setPeriod] = useState({ year: "all", month: "all" }); // month/year filter
+  const [period, setPeriod] = useState({ year: "all", month: "all", run: "all" }); // month/year/run filter
 
   async function exportAs(format) {
     setMenuOpen(false);
@@ -69,6 +70,7 @@ export default function TotalWorkDone({ refreshKey }) {
             {meta
               ? `${meta.files_processed} of ${meta.folders_scanned} work folder${meta.folders_scanned === 1 ? "" : "s"} counted`
               : "Samples and QC across all work folders"}
+            {period.run !== "all" && <span className="text-brand-700 font-medium"> · {period.run}</span>}
             {periodLabel(period.year, period.month) && (
               <span className="text-brand-700 font-medium"> · {periodLabel(period.year, period.month)}</span>
             )}
@@ -81,8 +83,24 @@ export default function TotalWorkDone({ refreshKey }) {
             periods={data?.meta?.periods ?? []}
             year={period.year}
             month={period.month}
-            onChange={setPeriod}
+            onChange={(p) => setPeriod((cur) => ({ ...cur, ...p }))}
           />
+        )}
+        {(data?.meta?.run_options?.length > 0 || period.run !== "all") && (
+          <label className="relative inline-flex items-center">
+            <Icon name="flask" size={14} className="absolute left-3 text-slate-400 pointer-events-none" />
+            <select
+              className="btn-ghost bg-white py-2 pl-8 pr-3 text-xs appearance-none cursor-pointer"
+              value={period.run}
+              onChange={(e) => setPeriod((cur) => ({ ...cur, run: e.target.value }))}
+              aria-label="Filter by run"
+            >
+              <option value="all">All runs</option>
+              {(data?.meta?.run_options ?? []).map((r) => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+          </label>
         )}
         <button className="btn-ghost bg-white py-2 px-3.5 text-xs" onClick={() => setReloadTick((t) => t + 1)}>
           <Icon name="refresh" size={14} /> Refresh
@@ -131,7 +149,8 @@ export default function TotalWorkDone({ refreshKey }) {
       ) : data ? (
         <>
           {/* ---- headline numbers ---- */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+            <BigCard label="Total runs" art="runs" tone="violet" value={data.runs?.total ?? 0} caption="All runs in the system" noun="runs" onOpen={() => setListing({ category: "runs", title: "Total runs", tone: "violet" })} />
             <BigCard label="Total samples" art="samples" tone="blue" value={s.total} caption="In approved runs" onOpen={() => setListing({ category: "total", title: "Total samples", tone: "blue" })} />
             <BigCard label="QC pass" art="pass" tone="green" value={qc.pass} caption="Samples that passed" onOpen={() => setListing({ category: "pass", title: "QC pass", tone: "green" })} />
             <BigCard label="QC fail" art="fail" tone="red" value={qc.fail} caption="Samples that failed" onOpen={() => setListing({ category: "fail", title: "QC fail", tone: "red" })} />
@@ -141,27 +160,29 @@ export default function TotalWorkDone({ refreshKey }) {
           {/* ---- samples by test type ---- */}
           <Block title="Samples by test type">
             <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
-              <SmallCard label="WES" icon="dna" tone="blue" value={s.wes.total} note={`WES ${s.wes.wes} · + Mito ${s.wes.wes_mito}`} />
-              <SmallCard label="WGS" icon="layers" tone="violet" value={s.wgs} />
-              <SmallCard label="Panel" icon="grid" tone="teal" value={s.panel} />
-              <SmallCard label="Mito" icon="activity" tone="amber" value={s.mito} note="Standalone" />
-              <SmallCard label="CES" icon="flask" tone="pink" value={s.ces} />
-              <SmallCard label="Others" icon="moreCircle" tone="slate" value={s.others} />
+              <SmallCard label="WES" onOpen={() => setListing({ category: "wes", title: "WES", tone: "blue" })} icon="dna" tone="blue" value={s.wes.total} note={`WES ${s.wes.wes} · + Mito ${s.wes.wes_mito}`} />
+              <SmallCard label="WGS" onOpen={() => setListing({ category: "wgs", title: "WGS", tone: "violet" })} icon="layers" tone="violet" value={s.wgs} />
+              <SmallCard label="Panel" onOpen={() => setListing({ category: "panel", title: "Panel", tone: "teal" })} icon="grid" tone="teal" value={s.panel} />
+              <SmallCard label="Mito" onOpen={() => setListing({ category: "mito", title: "Mito", tone: "amber" })} icon="activity" tone="amber" value={s.mito} note="Standalone" />
+              <SmallCard label="CES" onOpen={() => setListing({ category: "ces", title: "CES", tone: "pink" })} icon="flask" tone="pink" value={s.ces} />
+              <SmallCard label="Others" onOpen={() => setListing({ category: "others", title: "Others", tone: "slate" })} icon="moreCircle" tone="slate" value={s.others} />
             </div>
           </Block>
 
           {/* ---- report results (not tracked yet) ---- */}
           <Block title="Report">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <SmallCard label="Positive" icon="plusCircle" tone="indigo" value="-" />
               <SmallCard label="Negative" icon="minusCircle" tone="sky" value="-" />
-              <SmallCard label="VUS" icon="helpCircle" tone="fuchsia" value="-" />
             </div>
           </Block>
         </>
       ) : null}
 
-      {listing && (
+      {listing?.category === "runs" && (
+        <RunListDialog runs={data?.runs?.items || []} tone={listing.tone} onClose={() => setListing(null)} />
+      )}
+      {listing && listing.category !== "runs" && (
         <SampleListDialog
           category={listing.category}
           period={period}
@@ -169,22 +190,6 @@ export default function TotalWorkDone({ refreshKey }) {
           tone={listing.tone}
           onClose={() => setListing(null)}
         />
-      )}
-
-      {meta?.skipped?.length > 0 && (
-        <details className="text-xs text-slate-500">
-          <summary className="cursor-pointer select-none flex items-center gap-2">
-            <Icon name="info" size={14} className="text-slate-400" />
-            {meta.skipped.length} folder{meta.skipped.length === 1 ? " was" : "s were"} not counted
-          </summary>
-          <ul className="mt-2 space-y-1 pl-6 list-disc">
-            {meta.skipped.map((k) => (
-              <li key={k.folder}>
-                <span className="font-mono font-semibold text-slate-700">{k.folder}</span>: {k.reason}
-              </li>
-            ))}
-          </ul>
-        </details>
       )}
     </section>
   );
@@ -205,13 +210,12 @@ function Block({ title, children }) {
 
 /** A headline card: label, large number, short caption, and an illustration. Clicking
  * it opens the list of samples behind the number. */
-function BigCard({ label, art, tone, value, caption, onOpen }) {
+function BigCard({ label, art, tone, value, caption, onOpen, noun = "samples" }) {
+  const Tag = onOpen ? "button" : "div";
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      title={`Show the ${label.toLowerCase()} samples`}
-      className={`dcard tone-${tone} group w-full text-left cursor-pointer px-5 py-5 flex items-center justify-between gap-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-slate-400`}
+    <Tag
+      {...(onOpen ? { type: "button", onClick: onOpen, title: `Show the ${label.toLowerCase()} ${noun}` } : {})}
+      className={`dcard tone-${tone} group w-full text-left ${onOpen ? "cursor-pointer" : ""} px-5 py-5 flex items-center justify-between gap-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-slate-400`}
     >
       <div className="min-w-0">
         <div className="text-sm font-semibold text-slate-700">{label}</div>
@@ -220,18 +224,22 @@ function BigCard({ label, art, tone, value, caption, onOpen }) {
         </div>
         <div className="text-xs text-slate-500 mt-2.5 flex items-center gap-1">
           {caption}
-          <Icon name="chevronRight" size={13} className="dicon opacity-60 transition-transform group-hover:translate-x-0.5" />
+          {onOpen && <Icon name="chevronRight" size={13} className="dicon opacity-60 transition-transform group-hover:translate-x-0.5" />}
         </div>
       </div>
       <DashArt name={art} size={68} className="dicon shrink-0" />
-    </button>
+    </Tag>
   );
 }
 
 /** A compact card for one category. */
-function SmallCard({ label, icon, tone, value, note }) {
+function SmallCard({ label, icon, tone, value, note, onOpen }) {
+  const Tag = onOpen ? "button" : "div";
   return (
-    <div className={`dcard tone-${tone} p-4 flex items-start justify-between gap-3`}>
+    <Tag
+      {...(onOpen ? { type: "button", onClick: onOpen, title: `Show the ${label} samples` } : {})}
+      className={`dcard tone-${tone} p-4 flex items-start justify-between gap-3 w-full text-left ${onOpen ? "cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-slate-400" : ""}`}
+    >
       <div className="min-w-0">
         <div className="text-sm font-semibold text-slate-700">{label}</div>
         <div className="dnum text-3xl font-bold mt-0.5 tabular-nums tracking-tight leading-tight">
@@ -242,6 +250,6 @@ function SmallCard({ label, icon, tone, value, note }) {
       <span className="dtile w-10 h-10 rounded-xl flex items-center justify-center shrink-0">
         <Icon name={icon} size={20} strokeWidth={1.7} />
       </span>
-    </div>
+    </Tag>
   );
 }

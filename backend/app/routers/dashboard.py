@@ -294,7 +294,7 @@ def _head_qc_counts(
     return counts
 
 
-def _scan(db: Session) -> dict:
+def _scan(db: Session, run: str | None = None) -> dict:
     """Walk the work folders once: apply the approval gate, read each approved run's
     consolidated Excel, and gather what both the counts and the sample lists need."""
     tests: list[str] = []
@@ -307,6 +307,8 @@ def _scan(db: Session) -> dict:
     approved = _approved_run_numbers(db)
     _root = uploads_dir()
     folders = sorted(p for p in _root.iterdir() if p.is_dir()) if _root.exists() else []
+    if run:  # the dashboard's Run filter: look at that one run only
+        folders = [p for p in folders if p.name == run]
     for folder in folders:
         if folder.name not in approved:
             skipped.append({"folder": folder.name, "reason": "pending approval"})
@@ -335,7 +337,7 @@ def _scan(db: Session) -> dict:
 
     return {
         "tests": tests, "gen_ids": gen_ids, "samples": samples,
-        "processed": processed, "skipped": skipped, "folders": len(folders),
+        "processed": processed, "approved_runs": len(approved), "skipped": skipped, "folders": len(folders),
     }
 
 
@@ -353,8 +355,31 @@ def _periods(samples: list[dict]) -> list[dict]:
     ]
 
 
-def _compute(db: Session, year: str | None = None, month: str | None = None) -> dict:
-    scan = _scan(db)
+def _run_items(db: Session, scan: dict, year: str | None, month: str | None, run: str | None = None) -> list[dict]:
+    """The runs behind the Total runs card: each with its stage and, from the approved
+    consolidated Excel, how many samples it has (in the chosen period)."""
+    per_run: dict[str, int] = {}
+    for s in scan["samples"]:
+        if s["has_test"] and _in_period(s["year"], s["month"], year, month):
+            per_run[s["run"]] = per_run.get(s["run"], 0) + 1
+    out = []
+    for r in db.query(models.Run).order_by(models.Run.created_at.desc()).all():
+        if run and r.run_number != run:
+            continue
+        if (year or month) and r.run_number not in per_run:
+            continue
+        out.append({
+            "run": r.run_number,
+            "status": r.status,
+            "stage": r.current_stage,
+            "created": r.created_at.date().isoformat() if r.created_at else "",
+            "samples": per_run.get(r.run_number),
+        })
+    return out
+
+
+def _compute(db: Session, year: str | None = None, month: str | None = None, run: str | None = None) -> dict:
+    scan = _scan(db, run)
     processed = scan["processed"]
     if year or month:
         picked = [s for s in scan["samples"] if _in_period(s["year"], s["month"], year, month)]
@@ -362,7 +387,10 @@ def _compute(db: Session, year: str | None = None, month: str | None = None) -> 
         gen_ids = [s["gen_norm"] for s in picked if s["gen_norm"]]
     else:
         tests, gen_ids = scan["tests"], scan["gen_ids"]
+    # Runs: every run in the system — the same number as "Total runs" on the My Work page — or — with a month filter — those with a sample in it.
+    run_total = len({s["run"] for s in picked}) if (year or month) else (db.query(models.Run).filter(models.Run.run_number == run).count() if run else db.query(models.Run).count())
     return {
+        "runs": {"total": run_total, "items": _run_items(db, scan, year, month, run)},
         # "total" is every sample with a test type, counted once — not the sum of the cards,
         # which can overlap when one test name matches two categories.
         "sample": {**_count_samples(tests), "total": len(tests)},
@@ -378,7 +406,8 @@ def _compute(db: Session, year: str | None = None, month: str | None = None) -> 
             "folders_processed": processed,
             "skipped": scan["skipped"],
             "periods": _periods(scan["samples"]),
-            "filter": {"year": year, "month": month},
+            "run_options": [r for (r,) in db.query(models.Run.run_number).order_by(models.Run.run_number).all()],
+            "filter": {"year": year, "month": month, "run": run},
         },
     }
 
@@ -397,11 +426,11 @@ def _check_period(year: str | None, month: str | None) -> tuple[str | None, str 
 
 @router.get("/total-work-done")
 def total_work_done(
-    year: str | None = None, month: str | None = None,
+    year: str | None = None, month: str | None = None, run: str | None = None,
     db: Session = Depends(get_db), _: models.User = Depends(get_current_user),
 ):
     year, month = _check_period(year, month)
-    return _compute(db, year, month)
+    return _compute(db, year, month, (run or "").strip() or None)
 
 
 SAMPLE_LIST_LABELS = {
@@ -409,7 +438,23 @@ SAMPLE_LIST_LABELS = {
     "pass": "QC pass",
     "fail": "QC fail",
     "resequence": "Resequence",
+    # the test-type cards
+    "wes": "WES",
+    "wgs": "WGS",
+    "panel": "Panel",
+    "mito": "Mito",
+    "ces": "CES",
+    "others": "Others",
 }
+
+TEST_CATEGORIES = ("wes", "wgs", "panel", "mito", "ces", "others")
+
+
+def _in_test_category(test_norm: str, category: str) -> bool:
+    """Whether a sample's test is counted by that test-type card — decided by running
+    `_count_samples` itself on that one test, so the list always matches the card."""
+    c = _count_samples([test_norm])
+    return bool(c["wes"]["total"] if category == "wes" else c[category])
 
 
 def _qc_rows(
@@ -458,7 +503,7 @@ def _qc_rows(
 
 
 def _sample_items(
-    db: Session, category: str, year: str | None, month: str | None,
+    db: Session, category: str, year: str | None, month: str | None, run: str | None = None,
 ) -> tuple[str, list[dict]]:
     """(label, samples) behind one of the headline numbers. Uses the same approved runs
     and the same rules as the counts, so the list length always equals the card's number."""
@@ -466,11 +511,16 @@ def _sample_items(
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST, f"category must be one of: {', '.join(SAMPLE_LIST_LABELS)}",
         )
-    scan = _scan(db)
+    scan = _scan(db, run)
     if category in ("pass", "fail"):
         items = _qc_rows(db, scan["processed"], "Pass" if category == "pass" else "Fail", year, month)
     else:
-        pick = (lambda s: s["has_test"]) if category == "total" else (lambda s: s["is_reseq"])
+        if category == "total":
+            pick = lambda s: s["has_test"]
+        elif category == "resequence":
+            pick = lambda s: s["is_reseq"]
+        else:
+            pick = lambda s: s["has_test"] and _in_test_category(s["test_norm"], category)
         items = [
             {
                 "run": s["run"], "sample_id": s["sample_id"], "sample_name": s["sample_name"],
@@ -485,11 +535,11 @@ def _sample_items(
 
 @router.get("/total-work-done/samples")
 def total_work_done_samples(
-    category: str, year: str | None = None, month: str | None = None,
+    category: str, year: str | None = None, month: str | None = None, run: str | None = None,
     db: Session = Depends(get_db), _: models.User = Depends(get_current_user),
 ):
     year, month = _check_period(year, month)
-    label, items = _sample_items(db, category, year, month)
+    label, items = _sample_items(db, category, year, month, (run or "").strip() or None)
     return {"category": category, "label": label, "count": len(items), "samples": items}
 
 
@@ -513,7 +563,8 @@ def _period_label(year: str | None, month: str | None) -> str:
 
 def _build_pdf(data: dict) -> bytes:
     s, qc, meta = data["sample"], data["qc"], data["meta"]
-    period = _period_label(meta.get("filter", {}).get("year"), meta.get("filter", {}).get("month"))
+    flt = meta.get("filter", {})
+    period = " ".join(x for x in (flt.get("run"), _period_label(flt.get("year"), flt.get("month"))) if x)
     sections = [
         ("Sample", [
             ("Total samples", s["total"], True),
@@ -570,7 +621,7 @@ def _build_pdf(data: dict) -> bytes:
 
 @router.get("/total-work-done/export")
 def export_total_work_done(
-    format: str = "pdf", year: str | None = None, month: str | None = None,
+    format: str = "pdf", year: str | None = None, month: str | None = None, run: str | None = None,
     db: Session = Depends(get_db), _: models.User = Depends(get_current_user),
 ):
     year, month = _check_period(year, month)
@@ -582,7 +633,7 @@ def export_total_work_done(
         )
     filename = f"Total_Work_Done_{datetime.now().strftime('%Y-%m-%d')}.pdf"
     return Response(
-        _build_pdf(_compute(db, year, month)),
+        _build_pdf(_compute(db, year, month, (run or "").strip() or None)),
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
@@ -673,6 +724,7 @@ def _build_sample_list_pdf(label: str, items: list[dict], period: str, q: str) -
 @router.get("/total-work-done/samples/export")
 def export_total_work_done_samples(
     category: str, format: str = "pdf", year: str | None = None, month: str | None = None,
+    run: str | None = None,
     q: str = "", db: Session = Depends(get_db), _: models.User = Depends(get_current_user),
 ):
     """The same list the dialog shows (category, month filter and search), as a file."""
@@ -683,12 +735,15 @@ def export_total_work_done_samples(
             f"Unsupported format. Supported: {', '.join(sorted(EXPORT_FORMATS))}",
         )
     year, month = _check_period(year, month)
-    label, items = _sample_items(db, category, year, month)
+    run = (run or "").strip() or None
+    label, items = _sample_items(db, category, year, month, run)
     items = [i for i in items if _item_matches(i, q)]
     safe = re.sub(r"[^A-Za-z0-9]+", "_", label).strip("_")
     filename = f"{safe}_{datetime.now().strftime('%Y-%m-%d')}.pdf"
     return Response(
-        _build_sample_list_pdf(label, items, _period_label(year, month), q),
+        _build_sample_list_pdf(
+            label, items, " ".join(x for x in (run, _period_label(year, month)) if x), q,
+        ),
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

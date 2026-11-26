@@ -107,6 +107,7 @@ export default function SampleListDialog({ category, period, title, tone, onClos
       const effective = {
         year: narrow.year !== "all" ? narrow.year : period?.year,
         month: narrow.month !== "all" ? narrow.month : period?.month,
+        run: period?.run,
       };
       await downloadSampleList(category, effective, query.trim(), format);
     } catch (e) {
