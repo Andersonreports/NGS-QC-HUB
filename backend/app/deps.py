@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from .database import get_db
 from .security import decode_access_token
 from .tenancy import current_org
-from .workflow import ADMIN_ROLE, IMPERSONATABLE_ROLES
+from .workflow import SWITCHABLE_ROLES
 from . import models
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -37,7 +37,9 @@ def get_current_user(
     # so the UI knows to show the switcher. A non-admin, or an unknown/blank header,
     # falls through unchanged.
     acting = (request.headers.get(ACT_AS_HEADER) or "").strip()
-    if user.role == ADMIN_ROLE and acting in IMPERSONATABLE_ROLES:
+    # Admin and Bioinfo Head may act as any role; the Primary Team Head only as
+    # Wet Lab, Primary Team or Primary Head (see SWITCHABLE_ROLES).
+    if acting in SWITCHABLE_ROLES.get(user.role, ()):
         proxy = models.User(
             id=user.id,
             username=user.username,
@@ -45,7 +47,7 @@ def get_current_user(
             role=acting,
             is_active=True,
         )
-        proxy.real_role = ADMIN_ROLE
+        proxy.real_role = user.role
         return proxy
 
     user.real_role = user.role

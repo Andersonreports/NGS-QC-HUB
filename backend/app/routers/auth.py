@@ -9,6 +9,12 @@ from ..security import verify_password, create_access_token, hash_password
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
+# The admin and the Bioinfo Head are single, shared accounts: they sign in through NGS
+# and get a session in every organization. The CMC rows for these two roles remain only
+# as that session's identity (so history stays attached) and cannot be signed into directly.
+SHARED_ROLES = ("admin", "bioinfo_head")
+SHARED_HOME_ORG = ORG_IDS[0]
+
 # Roles that may open the VSWarehouse token monitor.
 VSW_ROLES = ("admin", "primary_team", "primary_head", "bioinfo_head")
 
@@ -26,7 +32,9 @@ def portal_login(payload: schemas.LoginRequest):
         db = SessionLocal()
         try:
             user = db.query(models.User).filter(models.User.username == username).first()
-            if user and user.is_active and verify_password(payload.password, user.password_hash):
+            if user and user.is_active and verify_password(payload.password, user.password_hash) and not (
+                user.role in SHARED_ROLES and org != SHARED_HOME_ORG
+            ):
                 found = (org, user.role, user.full_name, user.username)
                 break
         finally:
@@ -38,7 +46,7 @@ def portal_login(payload: schemas.LoginRequest):
 
     sessions = []
     for org in ORG_IDS:
-        if org != home_org and role != "admin":
+        if org != home_org and role not in SHARED_ROLES:
             continue
         tok = current_org.set(org)
         db = SessionLocal()
@@ -46,7 +54,7 @@ def portal_login(payload: schemas.LoginRequest):
             user = (
                 db.query(models.User).filter(models.User.username == uname).first()
                 if org == home_org
-                else db.query(models.User).filter(models.User.role == "admin", models.User.is_active == True).first()  # noqa: E712
+                else db.query(models.User).filter(models.User.role == role, models.User.is_active == True).first()  # noqa: E712
             )
             if not user:
                 continue
@@ -64,6 +72,8 @@ def portal_login(payload: schemas.LoginRequest):
 def login(payload: schemas.LoginRequest, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.username == payload.username.strip().lower()).first()
     if not user or not user.is_active or not verify_password(payload.password, user.password_hash):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Incorrect username or password")
+    if user.role in SHARED_ROLES and current_org.get() != SHARED_HOME_ORG:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Incorrect username or password")
     if payload.site == "vswarehouse" and user.role not in VSW_ROLES:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "VSWarehouse is not available for this account")

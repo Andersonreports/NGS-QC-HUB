@@ -32,8 +32,23 @@ const DEFAULT_ACTING_ROLE = "wetlab";
 
 /** True for an admin account — the only one that gets the role switcher. The real
  * role is "admin"; `role` may be a role it is currently acting as. */
+const ALL_ROLE_IDS = ["wetlab", "primary_team", "primary_head", "bioinfo_head"];
+const SWITCHABLE_ROLES = {
+  admin: ALL_ROLE_IDS,
+  bioinfo_head: ALL_ROLE_IDS,
+  primary_head: ["wetlab", "primary_team", "primary_head"],
+};
+function switchRolesFor(u) {
+  return (u && SWITCHABLE_ROLES[u.real_role || u.role]) || [];
+}
+/** Roles that may open User Management (the server enforces this too). Uses the true
+ * role, not one an admin/head is acting as. */
+const USER_MGMT_ROLES = ["primary_head", "bioinfo_head", "admin"];
+function canManageUsers(u) {
+  return !!u && USER_MGMT_ROLES.includes(u.real_role || u.role);
+}
 function isAdminUser(u) {
-  return !!u && (u.real_role === "admin" || u.role === "admin");
+  return switchRolesFor(u).length > 0;
 }
 
 /** The token monitor has its own address (/cmc/vswarehouse, /ngs/vswarehouse) so it survives
@@ -57,8 +72,9 @@ export default function App() {
   const [actingRole, setActingRoleState] = useState(() => {
     const u = getToken() ? getStoredUser() : null;
     let role = getActingRole();
-    if (isAdminUser(u) && !role) {
-      role = DEFAULT_ACTING_ROLE;
+    if (isAdminUser(u) && !switchRolesFor(u).includes(role)) {
+      const own = u.real_role || u.role;
+      role = own === "admin" ? DEFAULT_ACTING_ROLE : own;
       setActingRole(role);
     }
     return role || DEFAULT_ACTING_ROLE;
@@ -236,13 +252,14 @@ export default function App() {
         ]
       : []),
     ...(QC_REPORT_ROLES.includes(effUser.role) ? [{ id: "qcreport", label: "QC Report", icon: "file" }] : []),
-    ...(effUser.role === "primary_head" ? [{ id: "admin", label: "User Management", icon: "users" }] : []),
+    ...(canManageUsers(user) ? [{ id: "admin", label: "User Management", icon: "users" }] : []),
   ];
   return (
     <div className="min-h-screen">
       <TopBar
         user={effUser}
         isAdmin={isAdmin}
+        switchRoles={switchRolesFor(user)}
         actingRole={actingRole}
         onActingRole={changeActingRole}
         tabs={tabs}
@@ -268,6 +285,8 @@ export default function App() {
       <main className="w-full px-4 sm:px-6 lg:px-8 py-6 space-y-4">
         {loadError && <Alert kind="error">{loadError}</Alert>}
 
+        {/* keyed by view so every tab / run change eases in instead of snapping */}
+        <div key={viewingRun ? `run-${viewingRun}` : tab} className="page-enter space-y-4">
         {viewingRun ? (
           <RunHistory
             runNumber={viewingRun}
@@ -293,11 +312,12 @@ export default function App() {
           <MonthlyReport user={effUser} onViewRun={setViewingRun} />
         ) : tab === "qcreport" && QC_REPORT_ROLES.includes(effUser.role) ? (
           <QCReport onViewRun={setViewingRun} />
-        ) : effUser.role === "primary_head" ? (
-          <AdminUsers />
+        ) : tab === "admin" && canManageUsers(user) ? (
+          <AdminUsers actorRole={user.real_role || user.role} />
         ) : (
           <WorkView user={effUser} runs={runs} onViewRun={setViewingRun} onChanged={afterChange} pushToast={pushToast} />
         )}
+        </div>
       </main>
 
       <Toasts toasts={toasts} onDismiss={dismissToast} onOpen={setViewingRun} />

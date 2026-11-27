@@ -3,9 +3,16 @@ import { api } from "../api";
 import { ROLES } from "../workflow";
 import { Alert, Icon, Spinner } from "./ui";
 
-const ASSIGNABLE_ROLES = ["wetlab", "primary_team", "primary_head", "bioinfo_head"];
+// Which roles each kind of account may create / manage (mirrors the server).
+const CREATABLE = {
+  admin: ["wetlab", "primary_team", "primary_head", "bioinfo_head", "admin"],
+  bioinfo_head: ["wetlab", "primary_team", "primary_head", "bioinfo_head"],
+  primary_head: ["wetlab", "primary_team", "primary_head"],
+};
+const roleLabel = (r) => (r === "admin" ? "Admin" : ROLES[r]?.label || r);
 
-export default function AdminUsers() {
+export default function AdminUsers({ actorRole }) {
+  const ASSIGNABLE_ROLES = CREATABLE[actorRole] || [];
   const [users, setUsers] = useState(null);
   const [error, setError] = useState(null);
   const [form, setForm] = useState({ username: "", full_name: "", role: "wetlab", password: "" });
@@ -105,7 +112,7 @@ export default function AdminUsers() {
             >
               {ASSIGNABLE_ROLES.map((r) => (
                 <option key={r} value={r}>
-                  {ROLES[r].label}
+                  {roleLabel(r)}
                 </option>
               ))}
             </select>
@@ -157,16 +164,18 @@ export default function AdminUsers() {
                     <td className="px-5 py-3">{u.full_name}</td>
                     <td className="px-5 py-3">
                       <span className="text-sm font-semibold uppercase tracking-wide text-slate-600">
-                        {ROLES[u.role]?.label}
+                        {roleLabel(u.role)}
                       </span>
                     </td>
                     <td className="px-5 py-3 text-right">
+                      {ASSIGNABLE_ROLES.includes(u.role) && (
                       <button
                         className="text-xs font-bold text-slate-500 hover:text-accent-900"
                         onClick={() => toggleActive(u)}
                       >
                         {u.is_active === false ? "Reactivate" : "Deactivate"}
                       </button>
+                      )}
                     </td>
                   </tr>
                 ))}

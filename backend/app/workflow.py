@@ -37,6 +37,14 @@ HEAD_ROLES = ["primary_head", "bioinfo_head"]
 ADMIN_ROLE = "admin"
 IMPERSONATABLE_ROLES = ROLES  # the roles an admin may act as
 
+# Which roles each account may switch between (admin and Bioinfo Head: all of them).
+# The Primary Team Head may only move between the three primary-side roles.
+SWITCHABLE_ROLES = {
+    ADMIN_ROLE: list(ROLES),
+    "bioinfo_head": list(ROLES),
+    "primary_head": ["wetlab", "primary_team", "primary_head"],
+}
+
 STAGES = [
     {"id": "raw_data_placed", "step": "1", "role": "wetlab",
      "title": "Raw data on common drive",

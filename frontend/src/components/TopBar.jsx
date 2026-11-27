@@ -12,6 +12,7 @@ import { ORGS, currentOrgId } from "../orgs";
 export default function TopBar({
   user,
   isAdmin = false,
+  switchRoles,
   actingRole,
   onActingRole,
   tabs,
@@ -47,8 +48,10 @@ export default function TopBar({
       <div className="relative z-20 text-white bg-gradient-to-r from-brand-950 via-brand-800 to-brand-600">
         {/* soft glows + accent hairline for depth */}
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute -top-16 left-1/4 w-72 h-72 rounded-full bg-brand-300/20 blur-3xl" />
-          <div className="absolute -bottom-20 right-10 w-64 h-64 rounded-full bg-accent-500/25 blur-3xl" />
+          <div className="hdr-anim absolute -top-20 left-1/4 w-80 h-80 rounded-full bg-brand-300/25 blur-3xl" style={{ animation: "hdr-drift1 14s ease-in-out infinite" }} />
+          <div className="hdr-anim absolute -bottom-24 right-10 w-72 h-72 rounded-full bg-accent-500/30 blur-3xl" style={{ animation: "hdr-drift2 17s ease-in-out infinite" }} />
+          <div className="absolute inset-0 opacity-[0.10] [background-image:radial-gradient(white_1px,transparent_1px)] [background-size:18px_18px] [mask-image:linear-gradient(to_right,transparent,black_30%,black_70%,transparent)]" />
+          <div className="hdr-anim absolute inset-y-0 left-0 w-1/5 bg-gradient-to-r from-transparent via-white/10 to-transparent -skew-x-12" style={{ animation: "hdr-sheen 9s ease-in-out infinite" }} />
         </div>
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[3px] bg-gradient-to-r from-transparent via-accent-400 to-transparent" />
         <div className="relative w-full px-4 sm:px-6 lg:px-8">
@@ -69,13 +72,19 @@ export default function TopBar({
             </div>
 
             <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 md:flex-none">
-              <div className="w-9 h-9 sm:w-11 sm:h-11 shrink-0 rounded-xl sm:rounded-2xl bg-gradient-to-br from-accent-400 to-accent-700 ring-1 ring-white/30 flex items-center justify-center shadow-lg shadow-accent-900/40">
-                <Icon name="flask" size={22} />
+              <div className="relative shrink-0">
+                <div className="hdr-anim absolute inset-0 rounded-2xl bg-accent-400/50 blur-lg" style={{ animation: "hdr-pulse 3s ease-in-out infinite" }} />
+                <div className="relative w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-gradient-to-br from-accent-300 via-accent-500 to-accent-700 ring-1 ring-white/40 flex items-center justify-center shadow-lg shadow-accent-900/40">
+                  <Icon name="dna" size={22} />
+                </div>
               </div>
               <div className="text-left min-w-0">
-                <div className="text-[0.95rem] min-[420px]:text-base sm:text-xl lg:text-[1.35rem] font-extrabold tracking-tight leading-tight sm:leading-none truncate bg-gradient-to-r from-white to-brand-100 bg-clip-text text-transparent">Germline Exome QC Hub</div>
-                <div className="hidden min-[420px]:block text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.16em] text-accent-200 mt-1 sm:mt-1.5 truncate">
-                  Anderson Diagnostics & Labs · {ORGS[currentOrgId()]?.name}
+                <div className="text-[0.95rem] min-[420px]:text-base sm:text-xl lg:text-[1.35rem] font-black tracking-tight leading-tight sm:leading-none truncate bg-gradient-to-r from-white via-white to-accent-200 bg-clip-text text-transparent drop-shadow-sm">Germline Exome QC Hub</div>
+                <div className="hidden min-[420px]:flex items-center gap-1.5 mt-1 sm:mt-1.5 min-w-0">
+                  <span className="w-1.5 h-1.5 rounded-full bg-accent-400 shrink-0 shadow-[0_0_8px_rgb(232_113_47)]" />
+                  <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.16em] text-brand-100/90 truncate">
+                    Anderson Diagnostics & Labs · {ORGS[currentOrgId()]?.name}
+                  </span>
                 </div>
               </div>
             </div>
@@ -173,7 +182,7 @@ export default function TopBar({
       {isAdmin && (
         <div className="bg-brand-800 text-white border-b border-white/10">
           <div className="w-full px-4 sm:px-6 lg:px-8 py-2 flex items-center sm:justify-center gap-2 overflow-x-auto whitespace-nowrap">
-            {Object.keys(ROLES).map((rid) => {
+            {Object.keys(ROLES).filter((rid) => !switchRoles || switchRoles.includes(rid)).map((rid) => {
               const r = ROLES[rid];
               const active = actingRole === rid;
               return (
@@ -198,33 +207,32 @@ export default function TopBar({
 
       {/* ---------- tab bar (skipped when a role has only one screen) ---------- */}
       {tabs.length > 1 && (
-      <div className="relative z-10 bg-white/80 backdrop-blur-md border-b border-white/60">
-        <nav className="w-full px-4 sm:px-6 lg:px-8 py-1.5 sm:py-2 flex sm:justify-center gap-1.5 sm:gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {tabs.map((t) => {
-            const active = activeTab === t.id;
-            return (
-              <button
-                key={t.id}
-                onClick={() => onTab(t.id)}
-                className={`relative shrink-0 px-3.5 sm:px-5 py-1.5 sm:py-2 text-[13px] sm:text-sm font-bold whitespace-nowrap transition-all rounded-full ${
+      <div className="relative z-10 bg-white/70 backdrop-blur-xl border-b border-slate-200/70 shadow-sm">
+        <nav className="w-full px-4 sm:px-6 lg:px-8 py-2 sm:py-2.5 flex sm:justify-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex gap-1 p-1 rounded-full bg-slate-100/90 ring-1 ring-slate-200/80 shadow-inner">
+            {tabs.map((t) => {
+              const active = activeTab === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => onTab(t.id)}
+                  className={`group relative shrink-0 inline-flex items-center gap-1.5 px-3.5 sm:px-5 py-1.5 sm:py-2 text-[13px] sm:text-sm font-bold whitespace-nowrap rounded-full transition-all duration-200 ${
                     active
-                      ? "bg-gradient-to-r from-brand-700 to-brand-500 text-white shadow-md shadow-brand-700/30"
-                      : "text-slate-600 hover:text-brand-800 hover:bg-brand-50"
+                      ? "bg-gradient-to-r from-brand-800 via-brand-700 to-brand-500 text-white shadow-lg shadow-brand-700/30 -translate-y-px"
+                      : "text-slate-600 hover:text-brand-800 hover:bg-white hover:shadow-sm"
                   }`}
-              >
-                {t.label}
-                {t.badge > 0 && (
-                  <span
-                    className={`ml-2 inline-flex items-center justify-center min-w-[1.2rem] h-[1.2rem] text-[11px] font-extrabold rounded-full px-1 ${
-                      active ? "bg-accent-500 text-white" : "bg-accent-700 text-white"
-                    }`}
-                  >
-                    {t.badge}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+                >
+                  {t.icon && <Icon name={t.icon} size={15} />}
+                  {t.label}
+                  {t.badge > 0 && (
+                    <span className="ml-1 inline-flex items-center justify-center min-w-[1.2rem] h-[1.2rem] text-[11px] font-extrabold rounded-full px-1 bg-gradient-to-br from-accent-400 to-accent-600 text-white shadow">
+                      {t.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </nav>
       </div>
       )}
