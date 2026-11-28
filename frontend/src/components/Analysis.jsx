@@ -83,49 +83,51 @@ function useWidth() {
 const every = (n, w, per = 58) => Math.max(1, Math.ceil(n / Math.max(1, Math.floor(w / per))));
 const GRID = "#e6ebf2";
 
-/** 1. Columns — samples per period. */
-function ComboBars({ months }) {
+/** 1. Columns — samples per period, with conventional x / y axes, gridlines and tick marks. */
+function StandardBars({ months, xTitle = "Month" }) {
   const [ref, W] = useWidth();
   const [hover, setHover] = useState(null);
-  const H = 240, padL = 48, padR = 16, padT = 28, padB = 36;
+  const H = 320, padL = 64, padR = 20, padT = 20, padB = 64;
   if (!months.length) return <div ref={ref}><Empty /></div>;
   const step = every(months.length, W);
   const scale = niceScale(Math.max(...months.map((m) => m.total)));
-  const slot = (W - padL - padR) / months.length;
-  const bw = Math.max(6, Math.min(36, slot * 0.55));
-  const y = (v) => padT + (H - padT - padB) * (1 - v / scale.max);
-  const cx = (i) => padL + slot * i + slot / 2;
+  const slot = Math.min(72, (W - padL - padR) / months.length); // keep months close together
+  const bw = Math.max(6, slot * 0.78);
+  const right = padL + slot * months.length;
   const base = H - padB;
+  const CW = right + padR; // drawn width: the chart is centred in its container
+  const y = (v) => padT + (base - padT) * (1 - v / scale.max);
+  const cx = (i) => padL + slot * i + slot / 2;
   return (
-    <div ref={ref} className="w-full">
-      <svg width={W} height={H} role="img" aria-label="Samples per period" className="block">
-        <defs>
-          <linearGradient id="gCol" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#6aa4f0" />
-            <stop offset="100%" stopColor="#1668c1" />
-          </linearGradient>
-        </defs>
+    <div ref={ref} className="w-full flex justify-center">
+      <svg width={CW} height={H} role="img" aria-label="Samples per period, standard axes" className="block">
         {scale.ticks.map((t) => (
           <g key={t}>
-            <line x1={padL} x2={W - padR} y1={y(t)} y2={y(t)} stroke={GRID} strokeDasharray="3 5" />
-            <text x={padL - 10} y={y(t) + 4} textAnchor="end" fontSize="12" fill="#94a3b8">{t}</text>
+            <line x1={padL} x2={right} y1={y(t)} y2={y(t)} stroke={GRID} />
+            <line x1={padL - 5} x2={padL} y1={y(t)} y2={y(t)} stroke="#334155" strokeWidth="1.5" />
+            <text x={padL - 10} y={y(t) + 4} textAnchor="end" fontSize="12" fill="#475569">{t}</text>
           </g>
         ))}
         {months.map((m, i) => (
-          <g key={m.key} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} opacity={hover === null || hover === i ? 1 : 0.5}>
-            <rect x={padL + slot * i} y={padT} width={slot} height={H - padT - padB} fill="transparent" />
-            <rect x={cx(i) - bw / 2} y={y(m.total)} width={bw} height={Math.max(0, base - y(m.total))} rx={Math.min(10, bw / 2)} fill="url(#gCol)" />
-            {i % step === 0 && <text x={cx(i)} y={H - 12} textAnchor="middle" fontSize="12" fill="#475569">{m.label}</text>}
+          <g key={m.key} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} opacity={hover === null || hover === i ? 1 : 0.55}>
+            <rect x={padL + slot * i} y={padT} width={slot} height={base - padT} fill="transparent" />
+            <rect x={cx(i) - bw / 2} y={y(m.total)} width={bw} height={Math.max(0, base - y(m.total))} fill="#1668c1" />
+            <line x1={cx(i)} x2={cx(i)} y1={base} y2={base + 5} stroke="#334155" strokeWidth="1.5" />
+            {i % step === 0 && <text x={cx(i)} y={base + 20} textAnchor="middle" fontSize="12" fill="#475569">{m.label}</text>}
           </g>
         ))}
+        <line x1={padL} x2={padL} y1={padT} y2={base} stroke="#334155" strokeWidth="1.5" />
+        <line x1={padL} x2={right} y1={base} y2={base} stroke="#334155" strokeWidth="1.5" />
+        <text x={(padL + right) / 2} y={H - 10} textAnchor="middle" fontSize="12" fontWeight="700" fill="#334155">{xTitle}</text>
+        <text transform={`translate(14 ${(padT + base) / 2}) rotate(-90)`} textAnchor="middle" fontSize="12" fontWeight="700" fill="#334155">Number of samples</text>
         {hover !== null && (
           <g>
-            <rect x={Math.min(W - 170, Math.max(4, cx(hover) - 80))} y="0" width="160" height="26" rx="8" fill="#0f172a" />
-            <text x={Math.min(W - 90, Math.max(84, cx(hover)))} y="17" textAnchor="middle" fontSize="12" fontWeight="700" fill="#fff">{months[hover].label}: {months[hover].total} samples</text>
+            <rect x={Math.min(CW - 170, Math.max(4, cx(hover) - 80))} y="0" width="160" height="22" fill="#0f172a" />
+            <text x={Math.min(CW - 90, Math.max(84, cx(hover)))} y="15" textAnchor="middle" fontSize="12" fontWeight="700" fill="#fff">{months[hover].label}: {months[hover].total} samples</text>
           </g>
         )}
       </svg>
-          </div>
+    </div>
   );
 }
 
@@ -142,7 +144,7 @@ function QCMeters({ totals }) {
     { label: "Resequence", value: totals.resequence, share: pct(totals.resequence, totals.total), note: `of ${fmt(totals.total)} samples`, from: "#f08a45", to: "#c9560f" },
   ];
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-4/5 mx-auto">
       {/* the headline: how the checked samples split */}
       <div>
         <div className="flex items-end justify-between mb-2">
@@ -434,7 +436,7 @@ export default function Analysis() {
       {/* ---------- charts: one by one, full width ---------- */}
       <div className="pt-2">
         <Section n={1} tone="tone-blue" title={`Samples by ${unit}`} subtitle="Samples in each period, each counted in the month of its own date" stat={fmt(totals.total)} statLabel="total samples">
-          <ComboBars months={months} />
+          <StandardBars months={months} xTitle={unit === "day" ? "Day" : "Month"} />
         </Section>
         <Section n={2} tone="tone-sky" title="Test type mix" subtitle="Pie · share of each test across the selection" stat={fmt(mixTotal)} statLabel="tested samples">
           <TestPie mix={totals.mix} total={mixTotal} />

@@ -21,7 +21,8 @@ from sqlalchemy.orm import Session
 from .. import models
 from ..database import get_db
 from ..deps import require_role
-from ..workflow import STAGE_BY_ID, LEGACY_STAGE_ALIAS
+from ..workflow import STAGE_BY_ID, STAGE_INDEX, LEGACY_STAGE_ALIAS
+from .dashboard import _approved_run_numbers
 
 router = APIRouter(prefix="/api/qc-report", tags=["qc-report"])
 
@@ -66,6 +67,18 @@ def _stage_title(stage_id: str) -> str:
     return stage["title"] if stage else stage_id
 
 
+def _eligible_run_numbers(db: Session) -> set[str]:
+    """Runs whose consolidated Excel is approved AND that have moved past the
+    'Consolidated Excel approval' stage — runs still on or before it never show."""
+    gate = STAGE_INDEX["excel_head_review"]
+    out = set()
+    for run in db.query(models.Run).all():
+        sid = LEGACY_STAGE_ALIAS.get(run.current_stage, run.current_stage)
+        if STAGE_INDEX.get(sid, -1) > gate:
+            out.add(run.run_number)
+    return out & _approved_run_numbers(db)
+
+
 def _sheet_for(db: Session, run: models.Run) -> models.Sheet | None:
     return db.query(models.Sheet).filter(models.Sheet.run_id == run.id).first()
 
@@ -89,7 +102,10 @@ def list_qc_report_runs(db: Session = Depends(get_db), _user: models.User = Depe
     """Every run, each with the sample-level columns available inside it, so the page
     can offer the union of columns for whichever runs are ticked."""
     runs = []
+    approved = _eligible_run_numbers(db)
     for run in db.query(models.Run).order_by(models.Run.created_at.desc()).all():
+        if run.run_number not in approved:
+            continue
         sheet = _sheet_for(db, run)
         runs.append({
             "run_number": run.run_number,
@@ -310,7 +326,160 @@ def _build_pdf(sections: list[tuple[models.Run, list[dict]]], keys: list[str], g
                 for c in cols:
                     row.cell(_pdf_text(r.get(c)))
         pdf.ln(6)
+
+    _overall_summary(pdf, sections, usable)
+    _signature_block(pdf, usable, generated_by)
     return bytes(pdf.output())
+
+
+NAVY = (11, 52, 98)
+ORANGE = (240, 130, 30)
+
+
+def _test_of(row: dict) -> str:
+    for k, v in row.items():
+        if k.strip().lower() in ("test", "tests", "test name"):
+            return v.strip() or "Unspecified"
+    return "Unspecified"
+
+
+def _section_band(pdf: FPDF, x0: float, usable: float, title: str):
+    y = pdf.get_y()
+    pdf.set_fill_color(*NAVY)
+    pdf.rect(x0, y, usable, 7.5, style="F")
+    pdf.set_xy(x0 + 3, y)
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.set_text_color(255, 255, 255)
+    pdf.cell(usable - 6, 7.5, _pdf_text(title.upper()))
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_y(y + 10)
+
+
+def _simple_table(pdf: FPDF, usable: float, heads: list[str], body: list[list], widths: tuple, bold_last: bool = False):
+    pdf.set_font("Helvetica", "", 8.5)
+    pdf.set_fill_color(255, 255, 255)  # body cells inherit the current fill
+    pdf.set_draw_color(160, 170, 185)
+    pdf.set_line_width(0.2)
+    with pdf.table(
+        col_widths=widths, width=usable, text_align="CENTER", v_align="MIDDLE",
+        line_height=4.6, padding=1.4, borders_layout="ALL",
+        headings_style=FontFace(emphasis="BOLD", color=NAVY, fill_color=(236, 240, 246)),
+    ) as table:
+        h = table.row()
+        for c in heads:
+            h.cell(_pdf_text(c))
+        for i, r in enumerate(body):
+            row = table.row()
+            last = bold_last and i == len(body) - 1
+            for c in r:
+                row.cell(_pdf_text(c), style=FontFace(emphasis="BOLD") if last else None)
+    pdf.ln(5)
+
+
+def _overall_summary(pdf: FPDF, sections: list[tuple[models.Run, list[dict]]], usable: float):
+    """Closing page-section after every run: totals, QC pass/fail, and tests grouped."""
+    x0 = pdf.l_margin
+    all_rows = [r for _, rows in sections for r in rows]
+    n_tests = len({_test_of(r) for r in all_rows})
+    # Summary and signature share one page: start a fresh page if both won't fit here.
+    if pdf.will_page_break(10 + 24 + 8 + (n_tests + 2) * 8 + 62):
+        pdf.add_page()
+    pdf.set_x(x0)
+    names = ", ".join(run.run_number for run, _ in sections)
+    _section_band(pdf, x0, usable, f"Overall Summary : {names}")
+
+
+    total = len(all_rows)
+    passed = sum(1 for r in all_rows if r.get(QC_STATUS) == "Pass")
+    failed = sum(1 for r in all_rows if r.get(QC_STATUS) == "Fail")
+    rate = f"{passed * 100 / total:.1f}%" if total else "-"
+
+    # ---- headline tiles ----
+    tiles = [("Total Samples", total, NAVY),
+             ("QC Pass", passed, (30, 130, 76)), ("QC Fail", failed, (190, 40, 40)),
+             ("Pass Rate", rate, ORANGE)]
+    gap = 3
+    tw = (usable - gap * (len(tiles) - 1)) / len(tiles)
+    y = pdf.get_y()
+    for i, (label, val, colour) in enumerate(tiles):
+        x = x0 + i * (tw + gap)
+        pdf.set_fill_color(247, 249, 252)
+        pdf.set_draw_color(210, 216, 226)
+        pdf.rect(x, y, tw, 18, style="DF")
+        pdf.set_fill_color(*colour)
+        pdf.rect(x, y, tw, 1.2, style="F")
+        pdf.set_xy(x, y + 3.5)
+        pdf.set_font("Helvetica", "B", 15)
+        pdf.set_text_color(*colour)
+        pdf.cell(tw, 7, _pdf_text(val), align="C")
+        pdf.set_xy(x, y + 11)
+        pdf.set_font("Helvetica", "", 7.5)
+        pdf.set_text_color(90, 90, 90)
+        pdf.cell(tw, 5, label, align="C")
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_y(y + 24)
+
+    # ---- tests grouped ----
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.set_text_color(*NAVY)
+    pdf.cell(0, 6, "Test-wise Grouping", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_text_color(0, 0, 0)
+    groups: dict[str, list[int]] = {}
+    for r in all_rows:
+        g = groups.setdefault(_test_of(r), [0, 0, 0])
+        g[0] += 1
+        g[1] += r.get(QC_STATUS) == "Pass"
+        g[2] += r.get(QC_STATUS) == "Fail"
+    body = [[t, g[0], g[1], g[2]] for t, g in sorted(groups.items(), key=lambda kv: (-kv[1][0], kv[0]))]
+    body.append(["Total", total, passed, failed])
+    _simple_table(pdf, usable, ["Test", "Samples", "QC Pass", "QC Fail"], body,
+                  (usable * 0.4, usable * 0.2, usable * 0.2, usable * 0.2), bold_last=True)
+
+
+def _signature_block(pdf: FPDF, usable: float, generated_by: str):
+    """Approval signatures, kept together on one page."""
+    x0 = pdf.l_margin
+    if pdf.will_page_break(62):
+        pdf.add_page()
+    pdf.set_x(x0)
+    _section_band(pdf, x0, usable, "Approval & Signature")
+    pdf.set_font("Helvetica", "I", 8)
+    pdf.set_text_color(90, 90, 90)
+    pdf.multi_cell(usable, 4.5, "I have reviewed the QC results summarised in this report and approve them for release.",
+                   new_x="LMARGIN", new_y="NEXT")
+    pdf.set_text_color(0, 0, 0)
+    pdf.ln(3)
+
+    roles = [("Prepared by", generated_by), ("Reviewed by", ""), ("Approved by", "")]
+    gap = 6
+    bw = (usable - gap * (len(roles) - 1)) / len(roles)
+    y = pdf.get_y()
+    for i, (role, name) in enumerate(roles):
+        x = x0 + i * (bw + gap)
+        pdf.set_draw_color(210, 216, 226)
+        pdf.set_fill_color(247, 249, 252)
+        pdf.rect(x, y, bw, 8, style="DF")
+        pdf.set_xy(x, y)
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.set_text_color(*NAVY)
+        pdf.cell(bw, 8, role, align="C")
+        pdf.set_draw_color(*NAVY)
+        pdf.set_line_width(0.3)
+        pdf.line(x + 4, y + 30, x + bw - 4, y + 30)  # signature line
+        pdf.set_xy(x, y + 31)
+        pdf.set_font("Helvetica", "", 8)
+        pdf.set_text_color(60, 60, 60)
+        pdf.cell(bw, 4.5, "Signature", align="C")
+        pdf.set_xy(x, y + 38)
+        pdf.set_font("Helvetica", "B", 8.5)
+        pdf.set_text_color(0, 0, 0)
+        pdf.cell(bw, 4.5, _pdf_text(name) if name else "Name: ______________", align="C")
+        pdf.set_xy(x, y + 45)
+        pdf.set_font("Helvetica", "", 8)
+        pdf.set_text_color(60, 60, 60)
+        pdf.cell(bw, 4.5, "Date: ______________", align="C")
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_y(y + 52)
 
 
 @router.post("/pdf")
@@ -325,8 +494,10 @@ def download_qc_report_pdf(
     if not payload.run_numbers:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Choose at least one run")
 
+    approved = _eligible_run_numbers(db)
     runs = (db.query(models.Run).filter(models.Run.run_number.in_(payload.run_numbers))
             .order_by(models.Run.created_at.desc()).all())
+    runs = [r for r in runs if r.run_number in approved]
     if not runs:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "None of the selected runs were found")
 

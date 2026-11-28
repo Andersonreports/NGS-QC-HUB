@@ -37,7 +37,7 @@ function destinations(org) {
     {
       id: "germline",
       title: "Germline",
-      cmcTitle: "CMC Germline QC Hub",
+      titles: { cmc: "CMC Germline QC Hub", ngs: "Anderson Germline QC Hub" },
       sub: "Germline Exome QC Hub",
       blurb: "Sequencing runs, QC approvals and monthly reports.",
       href: germline,
@@ -46,7 +46,7 @@ function destinations(org) {
     {
       id: "vswarehouse",
       title: "VSWarehouse",
-      cmcTitle: "CMC Vs Warehouse Token Monitor",
+      titles: { cmc: "CMC VSWarehouse Token Monitor", ngs: "Anderson VSWarehouse Token Monitor" },
       sub: "Token Monitor",
       blurb: "Token usage, burn rate, live sheet and CSV/PDF reports.",
       href: `${germline.replace(/\/$/, "")}/vswarehouse`,
@@ -100,7 +100,7 @@ function Cards({ org, glow, badge, tint, line, label, icon, delay = 0 }) {
             <div className="relative mt-8">
               <div className={`text-xs font-bold uppercase tracking-[0.18em] ${tint}`}>{d.sub}</div>
               <div className="mt-1.5 text-2xl sm:text-3xl font-extrabold leading-tight text-white">
-                {org.id === "cmc" ? d.cmcTitle : `${org.id.toUpperCase()} ${d.title}`}
+                {d.titles[org.id] || `${org.id.toUpperCase()} ${d.title}`}
               </div>
               <p className="mt-2 text-sm text-brand-100/75 leading-relaxed max-w-[16rem]">{d.blurb}</p>
             </div>

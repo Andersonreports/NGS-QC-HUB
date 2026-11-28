@@ -11,6 +11,7 @@ import {
   wetlabCanReview,
 } from "../workflow";
 import FilePreview from "./FilePreview";
+import ExcelPreview from "./ExcelPreview";
 import FileRow from "./FileRow";
 import RunActionForm from "./RunActionForm";
 import { Alert, Icon, RoleChip, Spinner, formatDateTime } from "./ui";
@@ -34,6 +35,7 @@ export default function RunHistory({ runNumber, user, onBack, onChanged, onSilen
   // "preview" there just means the side panel is showing its default (files).
   const [view, setView] = useState("preview");
   const [sideOpen, setSideOpen] = useState(true);
+  const [mainMode, setMainMode] = useState("sample"); // "sample" | "excel" | "pdf"
   const role = user?.role;
 
   useEffect(() => {
@@ -52,7 +54,10 @@ export default function RunHistory({ runNumber, user, onBack, onChanged, onSilen
           const files = (data.history || [])
             .filter((e) => canSeeStage(e.stage_id, role))
             .flatMap((e) => (e.attachments || []).map((a) => ({ e, a })));
-          const last = files[files.length - 1];
+          // Sample preview defaults to the consolidated Excel's sample table (the PDF has
+          // its own button); fall back to the latest file only if there's no such sheet.
+          const sheetFiles = files.filter((f) => f.e.stage_id === "excel_uploaded");
+          const last = sheetFiles.length ? sheetFiles[sheetFiles.length - 1] : files[files.length - 1];
           return last
             ? {
                 kind: "remote",
@@ -84,6 +89,7 @@ export default function RunHistory({ runNumber, user, onBack, onChanged, onSilen
   // Picking a file on a small screen should take you to it, not leave you on the file list.
   function handlePreview(source) {
     setPreview(source);
+    setMainMode("sample");
     // Only a small screen has a separate Files tab to leave; on a large one the side panel stays put.
     if (!window.matchMedia("(min-width: 1024px)").matches) setView("preview");
   }
@@ -142,6 +148,20 @@ export default function RunHistory({ runNumber, user, onBack, onChanged, onSilen
     .filter((entry) => canSeeStage(entry.stage_id, role))
     .flatMap((entry) => (entry.attachments || []).map((attachment) => ({ entry, attachment })));
 
+  // The consolidated PDF (latest one uploaded), once it exists, gets its own button.
+  const pdfFile = [...allFiles].reverse().find(({ entry }) => entry.stage_id === "pdf_uploaded");
+  const pdfSource = pdfFile
+    ? {
+        kind: "remote",
+        runNumber: run.run_number,
+        attachmentId: pdfFile.attachment.id,
+        filename: pdfFile.attachment.filename,
+        sizeBytes: pdfFile.attachment.size_bytes,
+        stageId: pdfFile.entry.stage_id,
+      }
+    : null;
+  const modeNow = mainMode === "pdf" && !pdfSource ? "sample" : mainMode;
+
   const sideView = view === "status" ? "status" : "files";
   const gridCols = sideOpen ? "lg:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_26rem]" : "lg:grid-cols-1";
 
@@ -168,6 +188,30 @@ export default function RunHistory({ runNumber, user, onBack, onChanged, onSilen
     />
   );
 
+  const modeToggle = (
+    <div className="inline-flex items-center gap-1 rounded-xl bg-slate-100 p-1 ml-1" role="tablist" aria-label="Main preview">
+      {[
+        ["sample", "Samples", "grid", "Sample table"],
+        ["excel", "Excel", "table", "Excel / CSV files of this run"],
+        ...(pdfSource ? [["pdf", "PDF", "file", "Consolidated PDF"]] : []),
+      ].map(([id, text, icon, tip]) => (
+        <button
+          key={id}
+          role="tab"
+          aria-selected={modeNow === id}
+          title={tip}
+          onClick={() => setMainMode(id)}
+          className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-bold transition-colors ${
+            modeNow === id ? "bg-white text-brand-800 shadow ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-800 hover:bg-white/60"
+          }`}
+        >
+          <Icon name={icon} size={15} />
+          {text}
+        </button>
+      ))}
+    </div>
+  );
+
   return (
     <div className="flex flex-col gap-3 sm:gap-4 lg:h-[calc(100dvh-var(--header-h,7.5rem)-3rem)] lg:overflow-hidden">
       {/* Run header */}
@@ -177,6 +221,7 @@ export default function RunHistory({ runNumber, user, onBack, onChanged, onSilen
         <span className={`chip ${state.chip}`}>{state.label}</span>
         <span className="text-sm text-slate-500">{stageLabelFor(run, role)}</span>
         {currentVisible && STAGE_BY_ID[run.current_stage]?.role && <RoleChip role={STAGE_BY_ID[run.current_stage]?.role} />}
+        {modeToggle}
         <div className="ml-auto flex items-center gap-2">
           {role === "bioinfo_head" && (
             <button
@@ -240,7 +285,15 @@ export default function RunHistory({ runNumber, user, onBack, onChanged, onSilen
             always has room and scrolls inside it), the remaining height on large screens. */}
         <div className={`${view === "preview" ? "block" : "hidden"} lg:block min-w-0 lg:h-full lg:min-h-0`}>
           <div className="h-[calc(100dvh-13rem)] min-h-[26rem] lg:h-full lg:min-h-0">
-            <FilePreview source={preview} role={user.role} onClear={() => setPreview(null)} />
+            <div className="h-full min-h-0">
+              {modeNow === "excel" ? (
+                <ExcelPreview files={allFiles} runNumber={run.run_number} />
+              ) : modeNow === "pdf" ? (
+                <FilePreview key={pdfSource.attachmentId} source={pdfSource} role={user.role} onClear={null} />
+              ) : (
+                <FilePreview source={preview} role={user.role} onClear={() => setPreview(null)} />
+              )}
+            </div>
           </div>
         </div>
 

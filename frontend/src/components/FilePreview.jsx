@@ -19,6 +19,7 @@ function extOf(name = "") {
 export default function FilePreview({ source, role, onClear }) {
   const [state, setState] = useState({ status: "idle" });
   const objectUrlRef = useRef(null);
+  const [expanded, setExpanded] = useState(false); // fill the screen, like the sample table
   const isConsolidatedSheet = source?.kind === "remote" && source.stageId === "excel_uploaded";
 
   const meta = useMemo(() => {
@@ -104,6 +105,13 @@ export default function FilePreview({ source, role, onClear }) {
     []
   );
 
+  useEffect(() => {
+    if (!expanded) return;
+    const onKey = (e) => e.key === "Escape" && setExpanded(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [expanded]);
+
   if (!source) {
     return (
       <div className="card h-full flex flex-col items-center justify-center text-center p-8 min-h-[24rem]">
@@ -135,7 +143,7 @@ export default function FilePreview({ source, role, onClear }) {
   }
 
   return (
-    <div className="card h-full flex flex-col overflow-hidden min-h-[24rem]">
+    <div className={expanded ? "fixed inset-0 z-40 flex flex-col bg-white" : "card h-full flex flex-col overflow-hidden min-h-[24rem]"}>
       {(
         <header className="px-4 py-3 border-b border-slate-200 flex items-center gap-2.5 shrink-0">
           <Icon name="file" size={15} className="text-slate-400 shrink-0" />
@@ -155,6 +163,15 @@ export default function FilePreview({ source, role, onClear }) {
               <Icon name="download" size={13} />
             </button>
           )}
+          <button
+            className="btn-ghost py-1.5 px-2.5 text-xs shrink-0 gap-1.5"
+            onClick={() => setExpanded((v) => !v)}
+            title={expanded ? "Back to the page (Esc)" : "Open full screen for more room"}
+            aria-label={expanded ? "Close full screen" : "Full screen"}
+          >
+            <Icon name={expanded ? "x" : "panelLeft"} size={13} />
+            <span className="hidden md:inline">{expanded ? "Close" : "Full screen"}</span>
+          </button>
           {onClear && (
             <button className="text-slate-400 hover:text-slate-700 shrink-0" onClick={onClear} title="Close preview">
               <Icon name="x" size={15} />

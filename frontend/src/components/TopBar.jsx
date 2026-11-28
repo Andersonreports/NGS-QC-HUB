@@ -72,18 +72,12 @@ export default function TopBar({
             </div>
 
             <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 md:flex-none">
-              <div className="relative shrink-0">
-                <div className="hdr-anim absolute inset-0 rounded-2xl bg-accent-400/50 blur-lg" style={{ animation: "hdr-pulse 3s ease-in-out infinite" }} />
-                <div className="relative w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-gradient-to-br from-accent-300 via-accent-500 to-accent-700 ring-1 ring-white/40 flex items-center justify-center shadow-lg shadow-accent-900/40">
-                  <Icon name="dna" size={22} />
-                </div>
-              </div>
               <div className="text-left min-w-0">
                 <div className="text-[0.95rem] min-[420px]:text-base sm:text-xl lg:text-[1.35rem] font-black tracking-tight leading-tight sm:leading-none truncate bg-gradient-to-r from-white via-white to-accent-200 bg-clip-text text-transparent drop-shadow-sm">Germline Exome QC Hub</div>
                 <div className="hidden min-[420px]:flex items-center gap-1.5 mt-1 sm:mt-1.5 min-w-0">
                   <span className="w-1.5 h-1.5 rounded-full bg-accent-400 shrink-0 shadow-[0_0_8px_rgb(232_113_47)]" />
                   <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.16em] text-brand-100/90 truncate">
-                    Anderson Diagnostics & Labs · {ORGS[currentOrgId()]?.name}
+                    {ORGS[currentOrgId()]?.name}
                   </span>
                 </div>
               </div>

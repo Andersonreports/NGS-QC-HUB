@@ -141,15 +141,9 @@ export default function Login({ onLoggedIn, site, portal = false }) {
 
         <div className="relative z-10 min-h-screen mx-auto max-w-7xl grid lg:grid-cols-2 items-center gap-12 px-6 sm:px-12 py-14">
           <section className="lg-rise max-w-xl">
-            <div className="relative w-16 h-16 mb-8">
-              <div className="lg-anim absolute inset-0 rounded-2xl bg-accent-400/40 blur-xl" style={{ animation: "lg-pulse 3s ease-in-out infinite" }} />
-              <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-accent-400 to-accent-600 flex items-center justify-center shadow-xl shadow-accent-900/40 ring-1 ring-white/30">
-                <Icon name="dna" size={30} />
-              </div>
-            </div>
-            <h1 className="text-6xl sm:text-7xl font-black tracking-tight leading-[1.02]">
-              Welcome
-              <span className="block mt-1 bg-gradient-to-r from-accent-200 via-white to-brand-200 bg-clip-text text-transparent">to better science.</span>
+            <h1 className="tracking-tight">
+              <span className="block text-2xl sm:text-3xl font-bold text-brand-100">Welcome to</span>
+              <span className="block mt-2 text-3xl sm:text-4xl lg:text-[2.6rem] font-extrabold leading-tight bg-gradient-to-r from-accent-200 via-white to-brand-200 bg-clip-text text-transparent">Sequence. Analyse. Report.</span>
             </h1>
             <p className="mt-6 text-lg sm:text-xl text-brand-100/90 font-medium leading-relaxed max-w-md">
               Where every sample is <span className="inline-block min-w-[5.2rem]"><span key={wordIdx} className="lg-word inline-block font-extrabold text-accent-300">{WORDS[wordIdx]}</span></span>

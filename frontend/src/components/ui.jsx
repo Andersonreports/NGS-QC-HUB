@@ -2,6 +2,9 @@ import { ROLES, STAGE_BY_ID } from "../workflow";
 
 const ICON_PATHS = {
   check: "M5 13l4 4L19 7",
+  table: "M3 5h18v14H3z M3 10h18 M3 15h18 M9 5v14 M15 5v14",
+  expand: "M4 9V4h5 M20 9V4h-5 M4 15v5h5 M20 15v5h-5",
+  shrink: "M9 4v5H4 M15 4v5h5 M9 20v-5H4 M15 20v-5h5",
   x: "M6 6l12 12M18 6L6 18",
   upload: "M12 16V4M7 9l5-5 5 5M5 20h14",
   download: "M12 4v12M7 11l5 5 5-5M5 20h14",

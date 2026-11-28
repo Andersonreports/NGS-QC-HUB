@@ -354,8 +354,17 @@ export async function downloadAttachment(runNumber, attachmentId, filename) {
   URL.revokeObjectURL(url);
 }
 
-/** Download the QC Report PDF for the chosen runs and columns. */
+/** Download the QC Report PDFs for the chosen runs and columns — one separate PDF per run. */
 export async function downloadQCReport(runNumbers, columns) {
+  for (let i = 0; i < runNumbers.length; i++) {
+    await downloadOneQCReport(runNumbers[i], columns);
+    // A short gap keeps browsers from treating the batch as a download flood.
+    if (i < runNumbers.length - 1) await new Promise((r) => setTimeout(r, 400));
+  }
+}
+
+async function downloadOneQCReport(runNumber, columns) {
+  const runNumbers = [runNumber];
   const res = await fetch(`${BASE}/api/qc-report/pdf`, {
     method: "POST",
     headers: { ...authHeaders(), "Content-Type": "application/json" },
@@ -378,7 +387,7 @@ export async function downloadQCReport(runNumbers, columns) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `QC_Report_${new Date().toISOString().slice(0, 10)}.pdf`;
+  a.download = `QC_Report_${String(runNumber).replace(/[^\w.-]+/g, "_")}_${new Date().toISOString().slice(0, 10)}.pdf`;
   document.body.appendChild(a);
   a.click();
   a.remove();
